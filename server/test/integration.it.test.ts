@@ -131,6 +131,41 @@ d('Testcontainers: DB-backed routes via app.inject', () => {
     await app.close();
   });
 
+  it('GET /repos/:id/pulls sums cost_usd across every agent run for a PR', async () => {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const app = await buildApp({
+      config,
+      db: pg.handle.db,
+      overrides: { git: new MockGitClient(), github: new MockGitHubClient() },
+    });
+    const repoId = (await app.inject({ method: 'GET', url: '/repos' })).json()[0]!.id;
+
+    const before = await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` });
+    const pulls: { id: string; cost_usd: number | null }[] = before.json();
+    expect(pulls.length).toBeGreaterThan(0);
+    // No runs yet — cost is null, not 0.
+    expect(pulls[0]!.cost_usd ?? null).toBeNull();
+
+    const pr = pulls[0]!;
+    const [prRow] = await pg.handle.db
+      .select()
+      .from(t.pullRequests)
+      .where(eq(t.pullRequests.id, pr.id));
+
+    // Two settled runs + one still-superseded run — the aggregate must sum ALL
+    // of them (cumulative spend), not just the latest.
+    await pg.handle.db.insert(t.agentRuns).values([
+      { workspaceId: prRow!.workspaceId, prId: pr.id, status: 'done', costUsd: 0.05 },
+      { workspaceId: prRow!.workspaceId, prId: pr.id, status: 'done', costUsd: 0.03 },
+      { workspaceId: prRow!.workspaceId, prId: pr.id, status: 'failed', costUsd: null },
+    ]);
+
+    const after = await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` });
+    const updated = after.json().find((p: { id: string }) => p.id === pr.id);
+    expect(updated.cost_usd).toBeCloseTo(0.08, 5);
+    await app.close();
+  });
+
   it('POST /repos/:id/poll syncs PR list and does NOT trigger a review', async () => {
     const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
     const app = await buildApp({
