@@ -16,6 +16,11 @@ dashboard screens.)
 - **Run:** `pnpm dev` (`:3000`). **Test:** `pnpm test` (vitest + jsdom, fetch
   mocked — no API needed). **Typecheck:** `pnpm typecheck`.
 
+> Agent-facing map: [`CLAUDE.md`](CLAUDE.md) (this README stays the source of
+> truth for the route map below; `CLAUDE.md` just links to it). Feature specs
+> go in [`specs/`](specs/README.md), non-obvious lessons in
+> [`INSIGHTS.md`](INSIGHTS.md), deeper design notes in [`docs/`](docs/README.md).
+
 ## UI route map
 
 Routes (`src/app/**/page.tsx`) and the API surface each leans on (via

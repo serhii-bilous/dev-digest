@@ -34,6 +34,11 @@ feeding it — `skills` (L02), `memory` (L07), `specs` (L05), `callers` — plus
 In the starter the server passes only the diff, system prompt, and repo map; the
 extra slots are omitted, so `assemblePrompt` simply leaves those sections out.
 
+> Agent-facing map: [`CLAUDE.md`](CLAUDE.md) (this README stays the source of
+> truth for the pipeline diagram above; `CLAUDE.md` just links to it). Feature
+> specs go in [`specs/`](specs/README.md), non-obvious lessons in
+> [`INSIGHTS.md`](INSIGHTS.md), deeper design notes in [`docs/`](docs/README.md).
+
 ## Public API
 
 Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` (prompt),
