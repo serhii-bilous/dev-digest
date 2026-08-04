@@ -6,7 +6,7 @@ import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
 import { s } from "./styles";
-import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
+import type { FindingRecord, ReviewRecord, RunSummary, PrCommit, Severity } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
 
 interface FindingsTabProps {
@@ -21,6 +21,9 @@ interface FindingsTabProps {
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Page-level `?severity=` selection, shared by every run's filter bar. */
+  selectedSeverities?: Severity[];
+  onSelectedSeveritiesChange?: (next: Severity[]) => void;
   onOpenTrace: (id: string) => void;
   onDelete: (id: string) => void;
   onRunDone: () => void;
@@ -37,6 +40,8 @@ export function FindingsTab({
   cancelMutation,
   repoFullName,
   headSha,
+  selectedSeverities,
+  onSelectedSeveritiesChange,
   onOpenTrace,
   onDelete,
   onRunDone,
@@ -70,6 +75,16 @@ export function FindingsTab({
   const handleGoToReview = useCallback((runId: string) => {
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
+
+  // Timeline rows carry only a denormalized findings_count/blockers total —
+  // this joins each run to its own findings (with severity), already on this
+  // page via `runs`, keyed by run_id. Mirrors how the same page joins cost to
+  // a run elsewhere: both are already in memory, joined client-side.
+  const findingsByRun = React.useMemo(() => {
+    const m = new Map<string, FindingRecord[]>();
+    for (const r of runs) if (r.run_id) m.set(r.run_id, r.findings);
+    return m;
+  }, [runs]);
 
   return (
     <section>
@@ -131,6 +146,7 @@ export function FindingsTab({
           <RunHistory
             runs={prRuns ?? []}
             commits={prCommits}
+            findingsByRun={findingsByRun}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}
@@ -164,6 +180,8 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            selectedSeverities={selectedSeverities}
+            onSelectedSeveritiesChange={onSelectedSeveritiesChange}
           />
         ))
       )}

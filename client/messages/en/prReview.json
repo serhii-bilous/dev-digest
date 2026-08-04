@@ -29,7 +29,13 @@
   "panel": {
     "hideLowConfidence": "Hide low confidence",
     "noMatchTitle": "No findings match",
-    "noMatchBody": "Adjust the filters above, or run a review to generate findings."
+    "noMatchBody": "Adjust the filters above, or run a review to generate findings.",
+    "severityFilter": "Filter by severity",
+    "severity": {
+      "CRITICAL": "Critical",
+      "WARNING": "Warning",
+      "SUGGESTION": "Suggestion"
+    }
   },
   "runReview": {
     "runAll": "Run all enabled agents",
@@ -107,5 +113,15 @@
     "goToReview": "Jump to this run’s findings below",
     "openTrace": "Open run trace & logs",
     "deleteRun": "Delete run"
+  },
+  "findings": {
+    "none": "None",
+    "summary": "{count, plural, =0 {No findings} one {# finding} other {# findings}}",
+    "blockers": " · {count, plural, one {# blocker} other {# blockers}}",
+    "popover": {
+      "heading": "Findings",
+      "loading": "Loading findings…",
+      "empty": "No findings in this run"
+    }
   }
 }

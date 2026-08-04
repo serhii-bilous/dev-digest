@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Severity } from './findings.js';
+import { Severity, SeverityCounts } from './findings.js';
 
 /**
  * A5 — Observability / Multi-agent contracts (L07).
@@ -108,11 +108,7 @@ export const AgentStats = z.object({
   total_cost_usd: z.number().nullable(),
   avg_cost_usd: z.number().nullable(),
   avg_latency_ms: z.number().nullable(),
-  findings_by_severity: z.object({
-    CRITICAL: z.number().int(),
-    WARNING: z.number().int(),
-    SUGGESTION: z.number().int(),
-  }),
+  findings_by_severity: SeverityCounts,
   /** recent runs for a small trend chart (oldest→newest). */
   trend: z.array(StatPoint),
 });

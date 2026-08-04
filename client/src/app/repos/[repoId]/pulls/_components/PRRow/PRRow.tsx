@@ -4,12 +4,13 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Icon, Avatar, Badge, SeverityBadge, CircularScore } from "@devdigest/ui";
+import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
 import { formatCost } from "@/lib/format";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
+import { FindingsCell } from "../FindingsCell";
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
@@ -54,24 +55,7 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
           <span style={s.muted}>—</span>
         )}
       </div>
-      <div style={s.findingsCell}>
-        {pr.findings &&
-        pr.findings.CRITICAL + pr.findings.WARNING + pr.findings.SUGGESTION > 0 ? (
-          <>
-            {pr.findings.CRITICAL > 0 && (
-              <SeverityBadge severity="CRITICAL" count={pr.findings.CRITICAL} compact />
-            )}
-            {pr.findings.WARNING > 0 && (
-              <SeverityBadge severity="WARNING" count={pr.findings.WARNING} compact />
-            )}
-            {pr.findings.SUGGESTION > 0 && (
-              <SeverityBadge severity="SUGGESTION" count={pr.findings.SUGGESTION} compact />
-            )}
-          </>
-        ) : (
-          <span style={s.muted}>—</span>
-        )}
-      </div>
+      <FindingsCell pr={pr} />
       <div>
         <Badge dot color={st.c} bg="transparent">
           {t(`list.status.${st.labelKey}`)}

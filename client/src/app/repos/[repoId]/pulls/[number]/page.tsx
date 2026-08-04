@@ -21,7 +21,9 @@ import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun } 
 import { useActiveRepo, useRepoNotFound } from "../../../../../lib/repo-context";
 import { ApiError } from "../../../../../lib/api";
 import { githubPrUrl } from "../../../../../lib/github-urls";
-import type { FindingRecord } from "@devdigest/shared";
+import type { FindingRecord, Severity } from "@devdigest/shared";
+
+const KNOWN_SEVERITIES: Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
 
 export default function PRDetailPage() {
   const params = useParams<{ repoId: string; number: string }>();
@@ -66,6 +68,11 @@ export default function PRDetailPage() {
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
   const setTab = (t: string) => setParam("tab", t);
+
+  const selectedSeverities = (search.get("severity")?.split(",") ?? []).filter(
+    (s): s is Severity => (KNOWN_SEVERITIES as string[]).includes(s),
+  );
+  const setSeverities = (next: Severity[]) => setParam("severity", next.length ? next.join(",") : null);
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
@@ -147,6 +154,8 @@ export default function PRDetailPage() {
             prCommits={pr.commits}
             repoFullName={repoFullName}
             headSha={pr.head_sha}
+            selectedSeverities={selectedSeverities}
+            onSelectedSeveritiesChange={setSeverities}
             cancelMutation={cancel}
             onOpenTrace={(id) => setParam("trace", id)}
             onDelete={(id) => {

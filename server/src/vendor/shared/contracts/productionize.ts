@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Severity } from './findings.js';
+import { Severity, SeverityCounts } from './findings.js';
 
 /**
  * A6 — Productionize contracts (L08).
@@ -153,11 +153,7 @@ export const AgentPerfRow = z.object({
   avg_cost_usd: z.number().nullable(),
   avg_latency_ms: z.number().nullable(),
   last_run_at: z.string().nullable(),
-  findings_by_severity: z.object({
-    CRITICAL: z.number().int(),
-    WARNING: z.number().int(),
-    SUGGESTION: z.number().int(),
-  }),
+  findings_by_severity: SeverityCounts,
   /** recent findings-per-run trend (oldest→newest) for the sparkline. */
   trend: z.array(z.number()),
 });

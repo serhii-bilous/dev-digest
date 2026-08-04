@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type {
+  PrMeta,
+  PrDetail,
+  GitHubClient,
+  PrReviewComment,
+  SeverityCounts,
+} from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
@@ -132,10 +138,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     // the latest review only (like score, NOT cumulative like cost_usd), so
     // the badge reflects the PR's current review state rather than every
     // finding ever raised across re-reviews.
-    const findingsByPr = new Map<
-      string,
-      { CRITICAL: number; WARNING: number; SUGGESTION: number }
-    >();
+    const findingsByPr = new Map<string, SeverityCounts>();
     // Zero-init for every PR with a latest review so a clean review (no
     // findings) reports {0,0,0}, not null — null is reserved for "never
     // reviewed" (mirrors how `score` is only null pre-review).

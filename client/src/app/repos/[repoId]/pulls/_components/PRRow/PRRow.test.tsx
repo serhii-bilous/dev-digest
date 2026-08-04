@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PrMeta } from "@/lib/types";
 import messages from "../../../../../../../messages/en/prReview.json";
 import { PRRow } from "./PRRow";
@@ -34,10 +35,13 @@ function pr(o: Partial<PrMeta>): PrMeta {
 }
 
 function renderRow(row: PrMeta) {
+  const qc = new QueryClient();
   return render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <PRRow pr={row} repoId="repo-1" />
-    </NextIntlClientProvider>,
+    <QueryClientProvider client={qc}>
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+        <PRRow pr={row} repoId="repo-1" />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -72,8 +76,9 @@ describe("PRRow — findings cell", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
-  it("shows a dash when the latest review found nothing", () => {
+  it('shows "None" when the latest review found nothing (distinct from never-reviewed)', () => {
     renderRow(pr({ cost_usd: 0.05, findings: { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 } }));
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("None")).toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 });

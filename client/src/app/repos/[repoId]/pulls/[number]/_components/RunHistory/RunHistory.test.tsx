@@ -7,11 +7,33 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { RunSummary } from "@devdigest/shared";
+import type { RunSummary, FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import { RunHistory } from "./RunHistory";
 
 afterEach(cleanup);
+
+function finding(o: Partial<FindingRecord>): FindingRecord {
+  return {
+    id: "f1",
+    review_id: "r1",
+    severity: "WARNING",
+    category: "bug",
+    title: "t",
+    file: "a.ts",
+    start_line: 1,
+    end_line: 1,
+    rationale: "r",
+    suggestion: null,
+    confidence: 0.9,
+    kind: null,
+    trifecta_components: null,
+    evidence: null,
+    accepted_at: null,
+    dismissed_at: null,
+    ...o,
+  };
+}
 
 function run(o: Partial<RunSummary>): RunSummary {
   return {
@@ -35,10 +57,10 @@ function run(o: Partial<RunSummary>): RunSummary {
   };
 }
 
-function renderRuns(runs: RunSummary[]) {
+function renderRuns(runs: RunSummary[], findingsByRun?: Map<string, FindingRecord[]>) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <RunHistory runs={runs} onOpenTrace={() => {}} />
+      <RunHistory runs={runs} onOpenTrace={() => {}} findingsByRun={findingsByRun} />
     </NextIntlClientProvider>,
   );
 }
@@ -86,5 +108,28 @@ describe("RunHistory — tokens & cost", () => {
   it("hides the tokens/cost line on a run that hasn't settled", () => {
     renderRuns([run({ status: "failed", error: "boom", score: null, blockers: null, cost_usd: null })]);
     expect(screen.queryByText(/tok ·/)).not.toBeInTheDocument();
+  });
+});
+
+describe("RunHistory — per-severity findings badges", () => {
+  it("renders severity badges (not the plain-text count) when findingsByRun has this run", () => {
+    const findingsByRun = new Map<string, FindingRecord[]>([
+      ["run-1", [finding({ id: "f1", severity: "CRITICAL" }), finding({ id: "f2", severity: "WARNING" })]],
+    ]);
+    renderRuns([run({ status: "done", findings_count: 2, blockers: 1 })], findingsByRun);
+    expect(screen.getByRole("group")).toBeInTheDocument();
+    expect(screen.queryByText(/2 finding/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the plain-text count when the run has no entry in findingsByRun", () => {
+    const findingsByRun = new Map<string, FindingRecord[]>(); // this run's review was deleted
+    renderRuns([run({ status: "done", findings_count: 3, blockers: 1 })], findingsByRun);
+    expect(screen.getByText(/3 finding/)).toBeInTheDocument();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the plain-text count when findingsByRun isn't provided at all", () => {
+    renderRuns([run({ status: "done", findings_count: 0, blockers: 0 })]);
+    expect(screen.getByText(/0 finding/)).toBeInTheDocument();
   });
 });
