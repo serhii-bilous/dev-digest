@@ -173,6 +173,15 @@ export const PrMeta = z.object({
   // Cumulative $ spent reviewing this PR — sum of cost_usd across every agent
   // run ever recorded for it (list endpoint only; null/absent until a run exists).
   cost_usd: z.number().nullish(),
+  // Per-severity finding counts from the PR's latest review (list endpoint
+  // only; null/absent until reviewed). Unlike cost_usd, NOT cumulative.
+  findings: z
+    .object({
+      CRITICAL: z.number().int(),
+      WARNING: z.number().int(),
+      SUGGESTION: z.number().int(),
+    })
+    .nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

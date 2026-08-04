@@ -28,6 +28,7 @@ function pr(o: Partial<PrMeta>): PrMeta {
     updated_at: "2026-06-11T18:44:34.000Z",
     score: 61,
     cost_usd: null,
+    findings: { CRITICAL: 1, WARNING: 0, SUGGESTION: 0 },
     ...o,
   };
 }
@@ -48,6 +49,31 @@ describe("PRRow — cost cell", () => {
 
   it("shows a dash when the PR has no runs yet", () => {
     renderRow(pr({ cost_usd: null }));
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+});
+
+describe("PRRow — findings cell", () => {
+  it("renders a badge with the count for each nonzero severity", () => {
+    renderRow(pr({ findings: { CRITICAL: 2, WARNING: 4, SUGGESTION: 3 } }));
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+  });
+
+  it("omits badges for severities with a zero count", () => {
+    renderRow(pr({ findings: { CRITICAL: 0, WARNING: 5, SUGGESTION: 0 } }));
+    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("shows a dash when the PR has never been reviewed", () => {
+    renderRow(pr({ cost_usd: 0.05, findings: null }));
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("shows a dash when the latest review found nothing", () => {
+    renderRow(pr({ cost_usd: 0.05, findings: { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 } }));
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 });
