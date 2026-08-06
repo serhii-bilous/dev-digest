@@ -172,6 +172,18 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         suggestion: 'Use a single IN query and group in memory.',
         confidence: 0.86,
       },
+      {
+        reviewId: review!.id,
+        file: 'src/middleware/ratelimit.ts',
+        startLine: 30,
+        endLine: 30,
+        severity: 'SUGGESTION',
+        category: 'style',
+        title: 'Magic number for bucket size',
+        rationale: 'The token bucket capacity `100` is inlined at the call site.',
+        suggestion: 'Extract to a named `DEFAULT_BUCKET_SIZE` constant.',
+        confidence: 0.72,
+      },
     ]);
   }
 

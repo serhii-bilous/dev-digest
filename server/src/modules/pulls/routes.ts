@@ -117,35 +117,67 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap.
+    // Latest-review-BATCH score/findings per PR. A single "run review" click
+    // fans out into one `reviews` row per active agent (General/Security/
+    // Performance, ...), all created moments apart but completing (and thus
+    // inserting) in non-deterministic order. Picking a single "latest" row
+    // would surface whichever agent happened to finish last — often a clean
+    // Security/Performance pass — masking real findings a sibling agent
+    // raised in the very same run. Until `multi_agent_runs` is wired up as a
+    // real FK, approximate "same run" by clustering reviews within
+    // BATCH_WINDOW_MS of the newest one for that PR, then aggregate across
+    // the whole batch: MIN(score) so the worst agent's verdict wins (not the
+    // last-inserted one), SUM(findings) so nothing gets hidden.
+    //
+    // Agents in a run execute SEQUENTIALLY (run-executor.ts loops with
+    // `await` per agent, not Promise.all), so with 3 agents + retries the
+    // first-to-last spread can run several minutes — 2min was observed to be
+    // too tight against real data (a clean pass landed 122s after the one
+    // with findings and got treated as a separate, newer batch).
+    const BATCH_WINDOW_MS = 10 * 60 * 1000;
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { id: string; score: number | null }>();
+    const latestBatchByPr = new Map<string, { ids: string[]; score: number | null }>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ id: t.reviews.id, prId: t.reviews.prId, score: t.reviews.score })
+        .select({
+          id: t.reviews.id,
+          prId: t.reviews.prId,
+          score: t.reviews.score,
+          createdAt: t.reviews.createdAt,
+        })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
-      // Rows are newest-first → first seen per PR is the latest review.
+      const rowsByPr = new Map<string, typeof reviewRows>();
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { id: rv.id, score: rv.score });
+        const list = rowsByPr.get(rv.prId) ?? [];
+        list.push(rv);
+        rowsByPr.set(rv.prId, list);
+      }
+      // Rows are newest-first within each PR → list[0] anchors the batch window.
+      for (const [prId, list] of rowsByPr) {
+        const newest = list[0]!.createdAt.getTime();
+        const batch = list.filter((rv) => newest - rv.createdAt.getTime() <= BATCH_WINDOW_MS);
+        const scores = batch.map((rv) => rv.score).filter((s): s is number => s != null);
+        latestBatchByPr.set(prId, {
+          ids: batch.map((rv) => rv.id),
+          score: scores.length > 0 ? Math.min(...scores) : null,
+        });
       }
     }
 
     // Per-severity FINDINGS breakdown for the list's findings badges — from
-    // the latest review only (like score, NOT cumulative like cost_usd), so
-    // the badge reflects the PR's current review state rather than every
-    // finding ever raised across re-reviews.
+    // the latest review batch only (like score, NOT cumulative like
+    // cost_usd), so the badge reflects the PR's current review state rather
+    // than every finding ever raised across re-reviews.
     const findingsByPr = new Map<string, SeverityCounts>();
     // Zero-init for every PR with a latest review so a clean review (no
     // findings) reports {0,0,0}, not null — null is reserved for "never
     // reviewed" (mirrors how `score` is only null pre-review).
-    for (const prId of latestReviewByPr.keys()) {
+    for (const prId of latestBatchByPr.keys()) {
       findingsByPr.set(prId, { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 });
     }
-    const latestReviewIds = [...latestReviewByPr.values()].map((rv) => rv.id);
+    const latestReviewIds = [...latestBatchByPr.values()].flatMap((batch) => batch.ids);
     if (latestReviewIds.length > 0) {
       const findingRows = await container.db
         .select({
@@ -156,15 +188,16 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         .from(t.findings)
         .where(inArray(t.findings.reviewId, latestReviewIds))
         .groupBy(t.findings.reviewId, t.findings.severity);
-      const reviewIdToPrId = new Map(
-        [...latestReviewByPr.entries()].map(([prId, rv]) => [rv.id, prId]),
-      );
+      const reviewIdToPrId = new Map<string, string>();
+      for (const [prId, batch] of latestBatchByPr) {
+        for (const id of batch.ids) reviewIdToPrId.set(id, prId);
+      }
       for (const row of findingRows) {
         const prId = reviewIdToPrId.get(row.reviewId);
         if (!prId) continue;
         const counts = findingsByPr.get(prId) ?? { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
         if (row.severity === 'CRITICAL' || row.severity === 'WARNING' || row.severity === 'SUGGESTION') {
-          counts[row.severity] = Number(row.count);
+          counts[row.severity] += Number(row.count);
         }
         findingsByPr.set(prId, counts);
       }
@@ -188,7 +221,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     const now = Date.now();
     return rows.map((r) => {
-      const review = latestReviewByPr.get(r.id);
+      const review = latestBatchByPr.get(r.id);
       return {
         id: r.id,
         number: r.number,
