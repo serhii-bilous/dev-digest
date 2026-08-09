@@ -204,6 +204,35 @@ export class AgentsRepository {
     return links.map((l) => l.skill.id);
   }
 
+  /** Reverse of `linkedSkills` — every agent (in a workspace) that currently
+   *  links a given skill. Feeds the Skill Stats tab's "agents using this
+   *  skill" list and the pull-rate denominator. */
+  async agentsLinkingSkill(
+    workspaceId: string,
+    skillId: string,
+  ): Promise<{ agentId: string; agentName: string }[]> {
+    const rows = await this.db
+      .select({ agentId: t.agents.id, agentName: t.agents.name })
+      .from(t.agentSkills)
+      .innerJoin(t.agents, eq(t.agents.id, t.agentSkills.agentId))
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agentSkills.skillId, skillId)));
+    return rows;
+  }
+
+  /** Every agent_skills link in a workspace, in one query — the batched form
+   *  of `agentsLinkingSkill` used to compute lightweight per-skill stats for
+   *  every skill on the Skills list page at once (avoids an N+1 scan). */
+  async allAgentSkillLinksForWorkspace(
+    workspaceId: string,
+  ): Promise<{ agentId: string; agentName: string; skillId: string }[]> {
+    const rows = await this.db
+      .select({ agentId: t.agents.id, agentName: t.agents.name, skillId: t.agentSkills.skillId })
+      .from(t.agentSkills)
+      .innerJoin(t.agents, eq(t.agents.id, t.agentSkills.agentId))
+      .where(eq(t.agents.workspaceId, workspaceId));
+    return rows;
+  }
+
   /** Link a skill to an agent at a given order (idempotent: upserts order). */
   async linkSkill(agentId: string, skillId: string, order: number): Promise<void> {
     await this.db

@@ -1,7 +1,7 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, gte } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { RunSummary, RunTrace } from '@devdigest/shared';
+import type { AgentRunSummary, RunSummary, RunTrace } from '@devdigest/shared';
 
 // ---- in-flight / history --------------------------------------------------
 
@@ -65,6 +65,55 @@ export async function listRunsForPull(
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
+  }));
+}
+
+/**
+ * All runs for an AGENT (any status), newest first, capped — the Stats tab's
+ * "Run history" table. Unlike `listRunsForPull` this crosses every PR the
+ * agent has reviewed, so each row also carries PR identity + source.
+ */
+export async function listRunsForAgent(
+  db: Db,
+  workspaceId: string,
+  agentId: string,
+  opts: { sinceDate?: Date; limit?: number } = {},
+): Promise<AgentRunSummary[]> {
+  const conditions = [eq(t.agentRuns.workspaceId, workspaceId), eq(t.agentRuns.agentId, agentId)];
+  if (opts.sinceDate) conditions.push(gte(t.agentRuns.ranAt, opts.sinceDate));
+  const rows = await db
+    .select({
+      run: t.agentRuns,
+      agentName: t.agents.name,
+      prNumber: t.pullRequests.number,
+      prTitle: t.pullRequests.title,
+    })
+    .from(t.agentRuns)
+    .leftJoin(t.agents, eq(t.agents.id, t.agentRuns.agentId))
+    .leftJoin(t.pullRequests, eq(t.pullRequests.id, t.agentRuns.prId))
+    .where(and(...conditions))
+    .orderBy(desc(t.agentRuns.ranAt))
+    .limit(opts.limit ?? 50);
+  return rows.map(({ run, agentName, prNumber, prTitle }) => ({
+    run_id: run.id,
+    agent_id: run.agentId,
+    agent_name: agentName ?? null,
+    provider: run.provider,
+    model: run.model,
+    status: run.status,
+    error: run.error,
+    duration_ms: run.durationMs,
+    tokens_in: run.tokensIn,
+    tokens_out: run.tokensOut,
+    cost_usd: run.costUsd,
+    findings_count: run.findingsCount,
+    grounding: run.grounding,
+    ran_at: run.ranAt ? run.ranAt.toISOString() : null,
+    score: run.score,
+    blockers: run.blockers,
+    pr_number: prNumber ?? null,
+    pr_title: prTitle ?? null,
+    source: run.source ?? null,
   }));
 }
 

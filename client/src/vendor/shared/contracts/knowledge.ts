@@ -128,6 +128,13 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  // Lightweight usage stats attached by `SkillsService.list()` for the list
+  // cards ("N agents · NN% pull · NN% accept") — computed once per request
+  // across all skills, not per-card. Absent/undefined wherever a caller
+  // doesn't need them (e.g. a bare create/update response).
+  agent_count: z.number().int().optional(),
+  pull_rate: z.number().nullish(),
+  accept_rate: z.number().nullish(),
 });
 export type Skill = z.infer<typeof Skill>;
 
@@ -139,6 +146,17 @@ export const CommunitySkill = z.object({
   desc: z.string(),
 });
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
+
+// An immutable snapshot captured in `skill_versions` whenever a skill's body
+// (or name/description/type) changes. Mirrors AgentVersion's shape but simpler
+// — a skill has no multi-field config to wrap, just its body text.
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
 
 // ---- Conventions ----
 export const ConventionCandidate = z.object({

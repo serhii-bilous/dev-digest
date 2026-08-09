@@ -84,6 +84,10 @@ export const RunTrace = z.object({
   raw_output: z.string(),
   memory_pulled: z.array(MemoryPulled),
   specs_read: z.array(z.string()),
+  /** Skill ids actually attached (linked + enabled) at run time; null/absent
+   *  on runs recorded before this field existed — treat as no skills used,
+   *  no backfill. Feeds the Stats tab's "most-used skills" aggregation. */
+  skills_used: z.array(z.string()).nullish(),
   log: z.array(RunLogLine),
 });
 export type RunTrace = z.infer<typeof RunTrace>;
@@ -114,3 +118,15 @@ export const RunSummary = z.object({
   blockers: z.number().int().nullable(),
 });
 export type RunSummary = z.infer<typeof RunSummary>;
+
+/**
+ * A run row scoped to an AGENT rather than a PR (the Agent Editor's Stats tab
+ * "Run history" table, across every PR the agent has reviewed) — so unlike
+ * `RunSummary` it needs to carry PR identity + source explicitly.
+ */
+export const AgentRunSummary = RunSummary.extend({
+  pr_number: z.number().int().nullable(),
+  pr_title: z.string().nullable(),
+  source: z.enum(['local', 'ci']).nullable(),
+});
+export type AgentRunSummary = z.infer<typeof AgentRunSummary>;

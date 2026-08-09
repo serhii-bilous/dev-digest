@@ -1,0 +1,63 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for the Skill Stats tab. */
+export const s = {
+  wrap: { maxWidth: 900, padding: "20px 28px", display: "flex", flexDirection: "column", gap: 20 } satisfies CSSProperties,
+  kpiRow: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 } satisfies CSSProperties,
+  gaugeTile: {
+    flex: 1,
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    padding: 18,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+  } satisfies CSSProperties,
+  gaugeLabel: { fontSize: 12, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.03em" } satisfies CSSProperties,
+  gaugeBody: { display: "flex", alignItems: "center", marginTop: 12 } satisfies CSSProperties,
+  panelRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 } satisfies CSSProperties,
+  panel: {
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    padding: 18,
+  } satisfies CSSProperties,
+  panelTitle: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+    letterSpacing: "0.03em",
+    marginBottom: 12,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  } satisfies CSSProperties,
+  panelEmpty: { fontSize: 13, color: "var(--text-muted)" } satisfies CSSProperties,
+  agentRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 4px",
+    borderBottom: "1px solid var(--border)",
+  } satisfies CSSProperties,
+  agentIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    background: "var(--accent-bg)",
+    color: "var(--accent)",
+    display: "grid",
+    placeItems: "center",
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  agentName: { flex: 1, fontSize: 13, fontWeight: 600 } satisfies CSSProperties,
+  openLink: {
+    fontSize: 12,
+    color: "var(--accent-text)",
+    textDecoration: "underline",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+  } satisfies CSSProperties,
+} as const;

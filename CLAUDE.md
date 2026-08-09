@@ -35,6 +35,10 @@ this root file only carries what's true across all of them.
   `<package>/specs/`, `<package>/docs/`, `<package>/INSIGHTS.md`.
 
 ## Non-default conventions
+- Branch naming: `feat/<TAG>-<kebab-case-description>`, e.g.
+  `feat/HW1-findings`, `feat/LAB2-implementing-skills`. `<TAG>` is the
+  assignment/lesson identifier (e.g. `HW1`, `LAB2`); the description is a
+  short kebab-case summary of the work.
 - **Not** a monorepo workspace — each package has its own lockfile; install per
   folder (`cd server && pnpm install`, etc). Cross-package sharing (e.g.
   `@devdigest/shared` Zod contracts) is via tsconfig path aliases, not a
