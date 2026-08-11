@@ -7,8 +7,10 @@
 
 import React from "react";
 import { Icon, Badge } from "@devdigest/ui";
-import type { ReviewRecord, Verdict } from "@devdigest/shared";
+import type { ReviewRecord, Verdict, Severity } from "@devdigest/shared";
+import { FindingsHoverCard, SeverityBadges } from "@/components/findings-hover-card";
 import { FindingsPanel } from "../FindingsPanel";
+import { countBySeverity } from "../FindingsPanel/helpers";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
 
@@ -31,6 +33,8 @@ export function ReviewRunAccordion({
   headSha,
   targetRunId = null,
   targetNonce = 0,
+  selectedSeverities,
+  onSelectedSeveritiesChange,
 }: {
   review: ReviewRecord;
   prId: string;
@@ -41,6 +45,8 @@ export function ReviewRunAccordion({
    *  (driven from the Timeline: clicking an agent name navigates here). */
   targetRunId?: string | null;
   targetNonce?: number;
+  selectedSeverities?: Severity[];
+  onSelectedSeveritiesChange?: (next: Severity[]) => void;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
@@ -93,10 +99,18 @@ export function ReviewRunAccordion({
             {review.verdict.replace("_", " ")}
           </Badge>
         )}
-        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-          {findings.length} finding{findings.length === 1 ? "" : "s"}
-          {blockers > 0 ? ` · ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
-        </span>
+        {findings.length > 0 ? (
+          <FindingsHoverCard findings={findings}>
+            <SeverityBadges counts={countBySeverity(findings)} compact />
+          </FindingsHoverCard>
+        ) : (
+          <SeverityBadges counts={countBySeverity(findings)} compact />
+        )}
+        {blockers > 0 && (
+          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+            · {blockers} blocker{blockers === 1 ? "" : "s"}
+          </span>
+        )}
         <span style={{ flex: 1 }} />
         {review.score != null && (
           <Badge mono color="var(--text-secondary)">
@@ -152,6 +166,8 @@ export function ReviewRunAccordion({
             prId={prId}
             repoFullName={repoFullName}
             headSha={headSha}
+            selectedSeverities={selectedSeverities}
+            onSelectedSeveritiesChange={onSelectedSeveritiesChange}
           />
         </div>
       )}

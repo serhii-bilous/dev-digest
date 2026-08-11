@@ -8,6 +8,11 @@ agent-browser is a CLI, not a test framework, so this package adds a thin
 convention: each flow is a JSON list of agent-browser commands, run in order
 against one shared browser session by `run.ts`.
 
+> Agent-facing map: [`CLAUDE.md`](CLAUDE.md) (this README stays the source of
+> truth; `CLAUDE.md` just links to it). `specs/` here holds the flow
+> definitions themselves (see below), not feature specs. Non-obvious lessons
+> go in [`INSIGHTS.md`](INSIGHTS.md).
+
 ## How a flow works
 
 A spec lives in `specs/NN-name.flow.json`:

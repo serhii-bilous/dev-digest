@@ -62,6 +62,10 @@ Flags for `dev.sh`: `--no-seed` · `--no-client` · `--db-only` · `--help`.
   Postgres). Everything else must stay hermetic.
 - Secrets live in `~/.devdigest/secrets.json` (mode 0600) with `process.env` as
   fallback — never in git or the database.
+- Branch naming: `feat/<TAG>-<kebab-case-description>`, e.g.
+  `feat/HW1-findings`, `feat/LAB2-implementing-skills`. `<TAG>` is the
+  assignment/lesson identifier; the description is a short kebab-case summary
+  of the work.
 
 ## Gotchas
 

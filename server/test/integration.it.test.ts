@@ -131,6 +131,216 @@ d('Testcontainers: DB-backed routes via app.inject', () => {
     await app.close();
   });
 
+  it('GET /repos/:id/pulls reports findings from the latest review only, not every review', async () => {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const app = await buildApp({
+      config,
+      db: pg.handle.db,
+      overrides: { git: new MockGitClient(), github: new MockGitHubClient() },
+    });
+    const repos = await app.inject({ method: 'GET', url: '/repos' });
+    const repoId = repos.json()[0]!.id;
+    const repoRow = repos.json()[0]!;
+
+    // A fresh PR (not the seed's pre-reviewed #482) so it starts with no review.
+    const [prRow] = await pg.handle.db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId: repoRow.workspace_id,
+        repoId,
+        number: 9001,
+        title: 'Findings-aggregate fixture PR',
+        author: 'test',
+        branch: 'test/findings-agg',
+        base: 'main',
+        headSha: 'f00dbeef',
+        additions: 1,
+        deletions: 0,
+        filesCount: 1,
+        status: 'needs_review',
+      })
+      .returning();
+
+    const before = await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` });
+    const pulls: { id: string; findings: unknown }[] = before.json();
+    const pr = pulls.find((p) => p.id === prRow!.id)!;
+    expect(pr).toBeDefined();
+    // No review yet — findings is null, not zeroed counts.
+    expect(pr.findings ?? null).toBeNull();
+
+    const [olderReview] = await pg.handle.db
+      .insert(t.reviews)
+      .values({
+        workspaceId: prRow!.workspaceId,
+        prId: pr.id,
+        kind: 'review',
+        score: 40,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+      })
+      .returning();
+    await pg.handle.db.insert(t.findings).values([
+      {
+        reviewId: olderReview!.id,
+        file: 'a.ts',
+        startLine: 1,
+        endLine: 1,
+        severity: 'CRITICAL',
+        category: 'bug',
+        title: 'stale finding',
+        rationale: 'r',
+        confidence: 0.9,
+      },
+    ]);
+
+    const [latestReview] = await pg.handle.db
+      .insert(t.reviews)
+      .values({
+        workspaceId: prRow!.workspaceId,
+        prId: pr.id,
+        kind: 'review',
+        score: 70,
+        createdAt: new Date('2026-02-01T00:00:00Z'),
+      })
+      .returning();
+    await pg.handle.db.insert(t.findings).values([
+      {
+        reviewId: latestReview!.id,
+        file: 'a.ts',
+        startLine: 1,
+        endLine: 1,
+        severity: 'WARNING',
+        category: 'bug',
+        title: 'current finding 1',
+        rationale: 'r',
+        confidence: 0.8,
+      },
+      {
+        reviewId: latestReview!.id,
+        file: 'a.ts',
+        startLine: 2,
+        endLine: 2,
+        severity: 'WARNING',
+        category: 'bug',
+        title: 'current finding 2',
+        rationale: 'r',
+        confidence: 0.8,
+      },
+      {
+        reviewId: latestReview!.id,
+        file: 'a.ts',
+        startLine: 3,
+        endLine: 3,
+        severity: 'SUGGESTION',
+        category: 'style',
+        title: 'current finding 3',
+        rationale: 'r',
+        confidence: 0.6,
+      },
+    ]);
+
+    const after = await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` });
+    const updated = after
+      .json()
+      .find((p: { id: string }) => p.id === pr.id) as {
+      findings: { CRITICAL: number; WARNING: number; SUGGESTION: number };
+    };
+    // Only the latest review's findings are counted — the older CRITICAL is excluded.
+    expect(updated.findings).toEqual({ CRITICAL: 0, WARNING: 2, SUGGESTION: 1 });
+    await app.close();
+  });
+
+  it('GET /repos/:id/pulls aggregates a multi-agent run instead of picking whichever agent finished last', async () => {
+    // Regression test: a single "run review" click fans out into one
+    // `reviews` row per active agent, created moments apart in
+    // non-deterministic completion order. A clean Security/Performance pass
+    // that happens to insert last must not hide a General reviewer's real
+    // findings from the same run.
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const app = await buildApp({
+      config,
+      db: pg.handle.db,
+      overrides: { git: new MockGitClient(), github: new MockGitHubClient() },
+    });
+    const repos = await app.inject({ method: 'GET', url: '/repos' });
+    const repoId = repos.json()[0]!.id;
+    const repoRow = repos.json()[0]!;
+
+    const [prRow] = await pg.handle.db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId: repoRow.workspace_id,
+        repoId,
+        number: 9002,
+        title: 'Multi-agent-batch fixture PR',
+        author: 'test',
+        branch: 'test/multi-agent-batch',
+        base: 'main',
+        headSha: 'f00dbeef2',
+        additions: 1,
+        deletions: 0,
+        filesCount: 1,
+        status: 'needs_review',
+      })
+      .returning();
+
+    // General reviewer finishes first, finds a real issue.
+    const [generalReview] = await pg.handle.db
+      .insert(t.reviews)
+      .values({
+        workspaceId: prRow!.workspaceId,
+        prId: prRow!.id,
+        kind: 'review',
+        score: 53,
+        createdAt: new Date('2026-03-01T00:00:00.000Z'),
+      })
+      .returning();
+    await pg.handle.db.insert(t.findings).values([
+      {
+        reviewId: generalReview!.id,
+        file: 'a.ts',
+        startLine: 1,
+        endLine: 1,
+        severity: 'WARNING',
+        category: 'bug',
+        title: 'real issue',
+        rationale: 'r',
+        confidence: 0.8,
+      },
+    ]);
+
+    // Security + Performance reviewers finish moments later, clean — but
+    // still same run/batch as the General reviewer above.
+    await pg.handle.db.insert(t.reviews).values([
+      {
+        workspaceId: prRow!.workspaceId,
+        prId: prRow!.id,
+        kind: 'review',
+        score: 100,
+        createdAt: new Date('2026-03-01T00:00:03.000Z'),
+      },
+      {
+        workspaceId: prRow!.workspaceId,
+        prId: prRow!.id,
+        kind: 'review',
+        score: 100,
+        createdAt: new Date('2026-03-01T00:00:05.000Z'),
+      },
+    ]);
+
+    const after = await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` });
+    const updated = after
+      .json()
+      .find((p: { id: string }) => p.id === prRow!.id) as {
+      score: number | null;
+      findings: { CRITICAL: number; WARNING: number; SUGGESTION: number };
+    };
+    // The batch's worst score wins, and the General reviewer's finding is
+    // NOT masked by the clean Security/Performance passes finishing last.
+    expect(updated.score).toBe(53);
+    expect(updated.findings).toEqual({ CRITICAL: 0, WARNING: 1, SUGGESTION: 0 });
+    await app.close();
+  });
+
   it('POST /repos/:id/poll syncs PR list and does NOT trigger a review', async () => {
     const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
     const app = await buildApp({

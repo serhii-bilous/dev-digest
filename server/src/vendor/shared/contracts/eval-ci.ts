@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { Verdict, Finding } from './findings.js';
-import { EvalRun, EvalOwnerKind, Conformance, Provider, CiFailOn } from './knowledge.js';
+import { Verdict, Finding, Severity, FindingCategory } from './findings.js';
+import { EvalCase, EvalRun, EvalOwnerKind, Conformance, Provider, CiFailOn } from './knowledge.js';
 
 /**
  * A4 — Eval / CI / Compose / Conformance API contracts (L06).
@@ -29,6 +29,19 @@ export const EvalCaseInput = z.object({
 });
 export type EvalCaseInput = z.infer<typeof EvalCaseInput>;
 
+/**
+ * A single expected/actual finding descriptor for grading (severity+category
+ * only — an eval case doesn't pin exact file:line, just the shape of finding
+ * it expects). `EvalCaseInput.expected_output`/`EvalRunRecord.actual_output`
+ * stay loosely typed (`z.unknown()`) at the base-contract level; routes that
+ * specifically deal in finding-shaped eval cases tighten to this at the edge.
+ */
+export const EvalFindingDescriptor = z.object({ severity: Severity, category: FindingCategory });
+export type EvalFindingDescriptor = z.infer<typeof EvalFindingDescriptor>;
+
+export const EvalExpectedOutput = z.array(EvalFindingDescriptor);
+export type EvalExpectedOutput = z.infer<typeof EvalExpectedOutput>;
+
 /** A persisted eval run row (one execution of a case), returned by the API. */
 export const EvalRunRecord = z.object({
   id: z.string(),
@@ -44,6 +57,11 @@ export const EvalRunRecord = z.object({
   cost_usd: z.number().nullable(),
 });
 export type EvalRunRecord = z.infer<typeof EvalRunRecord>;
+
+/** An eval case + its most recent run (if any) — what the Evals tab list
+ *  renders (status icon, "expected N, got M", pass/fail). */
+export const EvalCaseWithLatestRun = EvalCase.extend({ latest_run: EvalRunRecord.nullable() });
+export type EvalCaseWithLatestRun = z.infer<typeof EvalCaseWithLatestRun>;
 
 /** Result of running a single case: the metrics (EvalRun) + the persisted row id. */
 export const EvalRunResult = z.object({

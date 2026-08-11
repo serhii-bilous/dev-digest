@@ -78,6 +78,13 @@
       "when": 1785578028135,
       "tag": "0010_modern_professor_monster",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786477629032,
+      "tag": "0011_strong_boomer",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,15 @@ pnpm typecheck    # tsc --noEmit
 pnpm test         # vitest + jsdom, fetch mocked — no API needed
 ```
 
+## Map
+
+- `src/app/<route>/page.tsx` — file-based routing; keep pages thin.
+- `src/app/<route>/_components/<Name>/` — feature logic, each with a colocated `*.test.tsx`.
+- `src/lib/hooks/*.ts` — every API call goes through a hook here.
+- `src/lib/api.ts` — low-level fetch client (`NEXT_PUBLIC_API_BASE`).
+- `src/vendor/ui/` — vendored UI kit (`@devdigest/ui`).
+- `src/vendor/shared/` — mirrors `server/src/vendor/shared` (Zod contracts).
+
 ## Conventions
 
 - App Router. Pages (`src/app/**/page.tsx`) stay thin; feature logic lives in

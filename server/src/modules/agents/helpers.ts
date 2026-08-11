@@ -1,6 +1,6 @@
 import type { Agent, AgentVersion, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
 import { AgentVersionConfig } from '@devdigest/shared';
-import type { AgentRow, AgentVersionRow } from './repository.js';
+import type { AgentRow, AgentVersionRow, AgentsRepository } from './repository.js';
 
 /**
  * Pure helpers for the agents module — DB row ⇄ DTO mapping and the
@@ -83,4 +83,26 @@ export function isConfigChange(
     (patch.repoIntel !== undefined && patch.repoIntel !== existing.repoIntel) ||
     patch.outputSchema !== undefined
   );
+}
+
+/** An enabled, linked skill resolved for a review — just what a caller needs. */
+export interface ResolvedSkill {
+  id: string;
+  body: string;
+}
+
+/**
+ * Resolve an agent's linked + globally-enabled skills, in order — the exact
+ * set that lands in a review's `## Skills / rules` prompt section. Shared by
+ * `run-executor.ts` (real PR reviews, which also records `skills_used` ids on
+ * the trace) and `evals/runner.ts` (eval cases, bodies only) so both run an
+ * agent against the same skill set, not two divergent implementations of
+ * "which skills apply".
+ */
+export async function resolveEnabledSkills(
+  agentsRepo: AgentsRepository,
+  agentId: string,
+): Promise<ResolvedSkill[]> {
+  const links = await agentsRepo.linkedSkills(agentId);
+  return links.filter((l) => l.skill.enabled).map((l) => ({ id: l.skill.id, body: l.skill.body }));
 }

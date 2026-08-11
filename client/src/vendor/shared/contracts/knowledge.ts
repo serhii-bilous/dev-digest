@@ -128,6 +128,13 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  // Lightweight usage stats attached by `SkillsService.list()` for the list
+  // cards ("N agents · NN% pull · NN% accept") — computed once per request
+  // across all skills, not per-card. Absent/undefined wherever a caller
+  // doesn't need them (e.g. a bare create/update response).
+  agent_count: z.number().int().optional(),
+  pull_rate: z.number().nullish(),
+  accept_rate: z.number().nullish(),
 });
 export type Skill = z.infer<typeof Skill>;
 
@@ -140,16 +147,52 @@ export const CommunitySkill = z.object({
 });
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
+// An immutable snapshot captured in `skill_versions` whenever a skill's body
+// (or name/description/type) changes. Mirrors AgentVersion's shape but simpler
+// — a skill has no multi-field config to wrap, just its body text.
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
 // ---- Conventions ----
+export const ConventionCategory = z.enum([
+  'naming',
+  'error-handling',
+  'structure',
+  'testing',
+  'api-design',
+  'other',
+]);
+export type ConventionCategory = z.infer<typeof ConventionCategory>;
+
 export const ConventionCandidate = z.object({
   id: z.string(),
+  category: ConventionCategory,
   rule: z.string(),
   evidence_path: z.string(),
+  evidence_line_start: z.number().int(),
+  evidence_line_end: z.number().int(),
   evidence_snippet: z.string(),
   confidence: z.number().min(0).max(1),
   accepted: z.boolean(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+// Per-repo scan metadata (sample size + when) for the Conventions page header.
+// `scanned_at: null` means the repo has never been scanned yet.
+export const ConventionScan = z.object({
+  repo_id: z.string(),
+  sample_file_count: z.number().int(),
+  candidate_count: z.number().int(),
+  scanned_at: z.string().nullable(),
+  // GitHub-facing PR number the scan targeted; null = the repo's default branch.
+  pull_number: z.number().int().nullable(),
+});
+export type ConventionScan = z.infer<typeof ConventionScan>;
 
 // ---- Agents ----
 export const Provider = z.enum(['openai', 'anthropic', 'openrouter']);

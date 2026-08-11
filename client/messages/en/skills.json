@@ -1,4 +1,12 @@
 {
+  "tabs": {
+    "config": "Config",
+    "preview": "Preview",
+    "evals": "Evals",
+    "stats": "Stats",
+    "versions": "Versions"
+  },
+  "runOnEvals": "Run on evals",
   "page": {
     "crumbLab": "Skills Lab",
     "crumbSkills": "Skills",
@@ -7,6 +15,7 @@
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
+      "createFromScratch": "Create from scratch",
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
       "community": "Search community skills…"
@@ -28,6 +37,10 @@
     "notFound": {
       "title": "Skill not found",
       "body": "It may have been deleted."
+    },
+    "fields": {
+      "description": "Description",
+      "type": "Type"
     }
   },
   "drawer": {
@@ -38,7 +51,19 @@
       "url": "From URL",
       "community": "Community"
     },
-    "importFailed": "Import failed"
+    "importFailed": "Import failed",
+    "cancel": "Cancel"
+  },
+  "create": {
+    "title": "Create a skill",
+    "subtitle": "Name it, say when it applies, and write the rule",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Use when …",
+    "descriptionHint": "This is the skill's interface — write it directly, e.g. \"Use when reviewing tests for uncovered branches.\"",
+    "typeLabel": "Type",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…"
   },
   "file": {
     "nameLabel": "Skill name",
@@ -72,6 +97,10 @@
     "import": "Import"
   },
   "listItem": {
+    "noDescription": "No description",
+    "agentCount": "{count} agents",
+    "pullRate": "{pct}% pull",
+    "acceptRate": "{pct}% accept",
     "needsVetting": "needs vetting",
     "vettingTitle": "Untrusted source — vet before enabling",
     "type": {
@@ -92,10 +121,52 @@
     "enabled": "Enabled",
     "disabled": "Disabled",
     "save": "Save",
+    "saving": "Saving…",
     "edit": "Edit",
+    "previewTab": "Preview",
+    "subtitle": "Rendered as the reviewing agent receives it.",
     "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
-    "version": "v{version}"
+    "version": "v{version}",
+    "savedToast": "Skill saved (v{version})"
+  },
+  "config": {
+    "title": "Configuration",
+    "unsavedBadge": "unsaved",
+    "tokenCount": "{count} tokens"
+  },
+  "versions": {
+    "title": "Version history",
+    "count": "{count} versions",
+    "explanation": "Every save snapshots the body so eval runs stay reproducible against the exact text they scored.",
+    "current": "Current",
+    "diff": "Diff",
+    "restore": "Restore",
+    "restoreConfirm": "Restore v{version}? This creates a new version with that body.",
+    "restored": "Restored to v{version} (now v{newVersion})",
+    "empty": "No version history yet.",
+    "diffOld": "v{version} (old)",
+    "diffCurrent": "Current (v{version})",
+    "closeDiff": "Close"
+  },
+  "stats": {
+    "usedBy": "Used by",
+    "agentsSuffix": "agents",
+    "pullFrequency": "Pull frequency",
+    "acceptRate": "Accept rate",
+    "findings30d": "Findings (30d)",
+    "agentsUsingSkill": "Agents using this skill",
+    "findingsByCategory": "Findings by category",
+    "openAgent": "Open",
+    "noAgents": "No agents are using this skill yet.",
+    "noFindings": "No findings yet in this window.",
+    "category": {
+      "bug": "Bug",
+      "security": "Security",
+      "perf": "Performance",
+      "style": "Style",
+      "test": "Test"
+    }
   }
 }

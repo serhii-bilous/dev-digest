@@ -2,6 +2,7 @@ import type { Container } from '../../platform/container.js';
 import type {
   Agent,
   AgentSkillLink,
+  AgentStats,
   AgentVersion,
   CiFailOn,
   ModelInfo,
@@ -10,6 +11,9 @@ import type {
 } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import { buildAgentStats } from './stats.js';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -169,6 +173,45 @@ export class AgentsService {
     const resolvedOrder = order ?? existing.length;
     await this.repo.linkSkill(agentId, skillId, resolvedOrder);
     return this.skillLinks(agentId);
+  }
+
+  /**
+   * Stats tab aggregate (`GET /agents/:id/stats`) — fetches the raw
+   * runs/findings/traces rows and delegates the actual number-crunching to
+   * the pure `buildAgentStats` (hermetically tested on its own).
+   */
+  async getStats(workspaceId: string, agentId: string): Promise<AgentStats | undefined> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+
+    const now = new Date();
+    const since60d = new Date(now.getTime() - 60 * DAY_MS);
+    const since30d = new Date(now.getTime() - 30 * DAY_MS);
+    const since6w = new Date(now.getTime() - 42 * DAY_MS);
+
+    const [runs60d, findings6w, traces30d, runHistory, allSkills] = await Promise.all([
+      this.container.reviewRepo.listRunsForAgent(workspaceId, agentId, {
+        sinceDate: since60d,
+        limit: 1000,
+      }),
+      this.container.reviewRepo.findingsForAgentWindow(workspaceId, agentId, since6w),
+      this.container.reviewRepo.runTracesForAgentWindow(workspaceId, agentId, since30d),
+      this.container.reviewRepo.listRunsForAgent(workspaceId, agentId, { limit: 50 }),
+      this.container.skillsRepo.list(workspaceId),
+    ]);
+
+    const skillNames = new Map(allSkills.map((s) => [s.id, s.name]));
+
+    return buildAgentStats({
+      agentId: agent.id,
+      agentName: agent.name,
+      runs60d,
+      findings6w,
+      traces30d,
+      skillNames,
+      runHistory,
+      now,
+    });
   }
 
   /**

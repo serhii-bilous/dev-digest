@@ -9,6 +9,16 @@ npm test           # vitest, hermetic, stubbed LLMProvider — no keys, no netwo
 npm run typecheck  # tsc --noEmit — this IS the build; the package emits no JS
 ```
 
+## Map
+
+- `prompt.ts` — `assemblePrompt()`: diff + system prompt + repo map → final
+  prompt; `wrapUntrusted()` / `INJECTION_GUARD` live here.
+- `grounding.ts` — `groundFindings()`: mandatory citation gate, drops findings
+  that don't cite a real diff line.
+- `llm/` — `LLMProvider` interface + `openrouter.ts` implementation (injected, mockable).
+- `review/run.ts` — orchestrates one review pass.
+- `output/to-review.ts` — CI payload shaping (consumed starting course lesson L06).
+
 ## Conventions
 
 - **Purity is the contract.** No database, no GitHub, no filesystem. The only
@@ -32,6 +42,11 @@ npm run typecheck  # tsc --noEmit — this IS the build; the package emits no JS
 - `assemblePrompt` accepts optional slots (`skills`, `memory`, `specs`,
   `callers`) that the starter does not fill. Omitted slots render as no section —
   an empty section in the prompt means a caller passed an empty value.
+
+## Do-not-touch
+
+- `grounding.ts`'s citation gate — the safety mechanism against hallucinated
+  line references; loosening it needs explicit sign-off.
 
 ## Read when
 

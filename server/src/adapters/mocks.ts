@@ -243,6 +243,8 @@ export class MockGitHubClient implements GitHubClient {
 export interface MockGitOptions {
   diff?: string;
   files?: Record<string, string>;
+  /** Per-ref file content, keyed by ref then path — for `readFileAtRef`. Falls back to `files` when a ref has no override. */
+  filesAtRef?: Record<string, Record<string, string>>;
   /** Name-only diff result (drives the incremental indexer's "changed files since X" path). */
   diffNameOnly?: string[];
   /** Override `currentHead()` so tests can simulate "sha unchanged since last index". */
@@ -254,6 +256,7 @@ export interface MockGitOptions {
 export class MockGitClient implements GitClient {
   public cloned: { repo: RepoRef; url: string }[] = [];
   public syncs: { repo: RepoRef; branch: string }[] = [];
+  public fetchedPullHeads: { repo: RepoRef; n: number }[] = [];
   private syncedHead?: string;
 
   constructor(private opts: MockGitOptions = {}) {}
@@ -265,7 +268,9 @@ export class MockGitClient implements GitClient {
     this.cloned.push({ repo, url });
     return { path: this.clonePathFor(repo) };
   }
-  async fetchPullHead(): Promise<void> {}
+  async fetchPullHead(repo: RepoRef, n: number): Promise<void> {
+    this.fetchedPullHeads.push({ repo, n });
+  }
   async sync(repo: RepoRef, branch: string): Promise<{ head: string }> {
     this.syncs.push({ repo, branch });
     // After a sync, HEAD advances to syncedHead (or stays at head if unset).
@@ -292,6 +297,9 @@ export class MockGitClient implements GitClient {
   }
   async readFile(_repo: RepoRef, path: string): Promise<string> {
     return this.opts.files?.[path] ?? '';
+  }
+  async readFileAtRef(_repo: RepoRef, ref: string, path: string): Promise<string> {
+    return this.opts.filesAtRef?.[ref]?.[path] ?? this.opts.files?.[path] ?? '';
   }
 }
 

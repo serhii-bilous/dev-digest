@@ -28,6 +28,11 @@ swapped for mocks in tests.
   `LocalSecretsProvider` (`src/adapters/secrets/local.ts`); `GITHUB_TOKEN` is
   canonical and `GITHUB_PAT` is accepted as a fallback.
 
+> Agent-facing map: [`CLAUDE.md`](CLAUDE.md) (this README stays the source of
+> truth for the diagrams below; `CLAUDE.md` just links to them). Feature specs
+> go in [`specs/`](specs/README.md), non-obvious lessons in
+> [`INSIGHTS.md`](INSIGHTS.md), deeper design notes in [`docs/`](docs/README.md).
+
 ## Request & DI flow
 
 ```mermaid

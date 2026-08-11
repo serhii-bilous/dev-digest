@@ -3,8 +3,10 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import type { RunSummary, PrCommit, FindingRecord } from "@devdigest/shared";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import { FindingsHoverCard, SeverityBadges } from "@/components/findings-hover-card";
+import { countBySeverity } from "../FindingsPanel/helpers";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -88,12 +90,17 @@ function tsOf(s: string | null | undefined): number {
 export function RunHistory({
   runs,
   commits = [],
+  findingsByRun,
   onOpenTrace,
   onGoToReview,
   onDelete,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  /** This run's own findings, keyed by run_id. Optional: absent means "fall
+   *  back" to the row's plain-text findings_count/blockers, not "empty" —
+   *  a run whose review was later deleted still has a real run row. */
+  findingsByRun?: Map<string, FindingRecord[]>;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -191,8 +198,23 @@ export function RunHistory({
               )}
               {settled && (
                 <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+                  {findingsByRun?.has(r.run_id) ? (
+                    (() => {
+                      const runFindings = findingsByRun.get(r.run_id)!;
+                      return runFindings.length > 0 ? (
+                        <FindingsHoverCard findings={runFindings}>
+                          <SeverityBadges counts={countBySeverity(runFindings)} compact />
+                        </FindingsHoverCard>
+                      ) : (
+                        <SeverityBadges counts={countBySeverity(runFindings)} compact />
+                      );
+                    })()
+                  ) : (
+                    <>
+                      {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+                      {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+                    </>
+                  )}
                 </div>
               )}
             </div>

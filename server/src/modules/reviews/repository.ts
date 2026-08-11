@@ -1,6 +1,6 @@
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
+import type { AgentRunSummary, Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
@@ -21,6 +21,8 @@ export type ReviewRow = typeof t.reviews.$inferSelect;
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
+import * as statsRepo from './repository/stats.repo.js';
+import type { AgentFindingRow } from './repository/stats.repo.js';
 
 export class ReviewRepository {
   constructor(private db: Db) {}
@@ -80,6 +82,48 @@ export class ReviewRepository {
   /** All runs for a PR (any status), newest first — the PR run history. */
   listRunsForPull(workspaceId: string, prId: string): Promise<RunSummary[]> {
     return runRepo.listRunsForPull(this.db, workspaceId, prId);
+  }
+
+  /** All runs for an AGENT (any status), newest first, capped — the Stats
+   *  tab's run-history table, across every PR the agent has reviewed. */
+  listRunsForAgent(
+    workspaceId: string,
+    agentId: string,
+    opts?: { sinceDate?: Date; limit?: number },
+  ): Promise<AgentRunSummary[]> {
+    return runRepo.listRunsForAgent(this.db, workspaceId, agentId, opts);
+  }
+
+  /** findings→reviews→agent_runs for one agent since a date — the Stats
+   *  tab's accept-rate/severity/category aggregates are all computed from
+   *  this in application code. */
+  findingsForAgentWindow(
+    workspaceId: string,
+    agentId: string,
+    sinceDate: Date,
+  ): Promise<AgentFindingRow[]> {
+    return statsRepo.findingsForAgentWindow(this.db, workspaceId, agentId, sinceDate);
+  }
+
+  /** run_traces for one agent's runs since a date — read for `skills_used`
+   *  tallying (Stats tab's "most-used skills"). */
+  runTracesForAgentWindow(workspaceId: string, agentId: string, sinceDate: Date): Promise<RunTrace[]> {
+    return statsRepo.runTracesForAgentWindow(this.db, workspaceId, agentId, sinceDate);
+  }
+
+  /** Same join as `findingsForAgentWindow`, workspace-wide — the Skill Stats
+   *  tab filters this by "was this skill active in this run" itself. */
+  findingsForWorkspaceWindow(workspaceId: string, sinceDate: Date): Promise<AgentFindingRow[]> {
+    return statsRepo.findingsForWorkspaceWindow(this.db, workspaceId, sinceDate);
+  }
+
+  /** run_traces workspace-wide, with each trace's run id — lets the Skill
+   *  Stats tab know WHICH runs had a given skill active. */
+  runTracesForWorkspaceWindow(
+    workspaceId: string,
+    sinceDate: Date,
+  ): Promise<{ runId: string; trace: RunTrace }[]> {
+    return statsRepo.runTracesForWorkspaceWindow(this.db, workspaceId, sinceDate);
   }
 
   /** Delete one agent run (+ its trace via FK cascade). Workspace-scoped. */

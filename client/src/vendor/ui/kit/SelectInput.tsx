@@ -32,6 +32,15 @@ export function SelectInput({
         onChange={(e) => onChange?.(e.target.value)}
         style={{
           flex: 1,
+          // A native <select>'s closed-box width is sized to its widest
+          // <option> in most browsers — with a long option list this can
+          // blow out an ancestor flex layout. minWidth:0 lets it actually
+          // shrink when constrained; the rest truncates gracefully instead
+          // of forcing the box wider (see conventions PR picker).
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
           fontSize: 14,
           color: "var(--text-primary)",
           background: "transparent",

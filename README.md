@@ -1,4 +1,4 @@
-# DevDigest — starter
+ # DevDigest — starter
 
 Local-first AI pull-request review. This is the **course starter template**: a
 minimal-but-working tool that does exactly one thing end to end — **import a PR
@@ -21,6 +21,11 @@ aliases, not published modules):
 project context into reviews) lives inside the server at
 [`server/src/modules/repo-intel`](server/src/modules/repo-intel). Only
 **Postgres** runs in Docker; the API and web app run on the host via `pnpm dev`.
+
+> Agent-facing map: [`CLAUDE.md`](CLAUDE.md) (kept ≤100 lines, links out —
+> doesn't duplicate this README). Each package (`server/`, `client/`,
+> `reviewer-core/`, `e2e/`) has its own `CLAUDE.md` (auto-loads when you touch
+> a file inside it) plus local `specs/`, `docs/`, `INSIGHTS.md`.
 
 ## Architecture
 

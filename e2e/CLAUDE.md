@@ -11,6 +11,14 @@ npm test                # runs flows against whatever is on E2E_BASE_URL
 npm run typecheck
 ```
 
+## Map
+
+- `specs/NN-name.flow.json` — **this is where the flows themselves live**, not
+  feature specs. Each file is an ordered list of `agent-browser` commands +
+  deterministic assertions (`wait --text` / `wait --url`).
+- `run.ts` — executes one shared browser session across all flow files.
+- `lib/assert.ts` — shared assertion helpers.
+
 ## Conventions
 
 - A flow is `specs/NN-name.flow.json`: a JSON list of agent-browser commands run
@@ -34,6 +42,11 @@ npm run typecheck
   runner exists precisely so you never need to touch the dev DB.
 - This is a CLI wrapper, not a test framework: a failing step fails the flow with
   the raw agent-browser exit, so read stderr rather than expecting a matcher diff.
+
+## Do-not-touch
+
+- No `chat`/AI locator commands — flows must stay deterministic and key-free;
+  don't introduce a non-deterministic locator to fix a flaky step.
 
 ## Read when
 

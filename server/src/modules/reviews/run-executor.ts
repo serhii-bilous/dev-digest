@@ -8,6 +8,7 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { resolveEnabledSkills } from '../agents/helpers.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -80,6 +81,7 @@ export class ReviewRunExecutor {
             durationMs: 0,
             tokensIn: 0,
             tokensOut: 0,
+            costUsd: null,
             findingsCount: 0,
             grounding: '0/0 passed',
             error: msg,
@@ -181,6 +183,11 @@ export class ReviewRunExecutor {
       const repoMap = repoIntelOn ? await this.buildRepoMapDigest(pull.repoId, runLog) : undefined;
       const rankNote = repoIntelOn ? await this.buildRankNote(pull.repoId, diff, runLog) : '';
 
+      // Skills — the agent's linked + enabled skill bodies (Agent Editor's
+      // Skills tab), independent of repo-intel. A skill only lands here when
+      // it's BOTH linked to this agent AND globally enabled.
+      const { bodies: skillBodies, ids: skillIds } = await this.buildSkillsBodies(agent.id, runLog);
+
       const task = taskLine(pull) + rankNote;
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
@@ -200,6 +207,9 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // Agent's linked + enabled skill bodies. Omitted when the agent has
+        // none — assemblePrompt drops the section entirely in that case.
+        ...(skillBodies.length > 0 ? { skills: skillBodies } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -280,6 +290,7 @@ export class ReviewRunExecutor {
         raw_output: outcome.raw,
         memory_pulled: [],
         specs_read: [],
+        skills_used: skillIds.length > 0 ? skillIds : null,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
@@ -302,6 +313,7 @@ export class ReviewRunExecutor {
           durationMs: Date.now() - start,
           tokensIn: 0,
           tokensOut: 0,
+          costUsd: null,
           findingsCount: 0,
           grounding: '0/0 passed',
           error: msg,
@@ -356,6 +368,24 @@ export class ReviewRunExecutor {
     }
     runLog.info(`callers digest: ${rows.length} caller signature(s) attached`);
     return out.join('\n');
+  }
+
+  /**
+   * Resolve the agent's linked skill bodies (+ ids, for `skills_used` on the
+   * trace — Stats tab's "most-used skills") for the prompt's `## Skills /
+   * rules` section — enabled links only (a skill disabled globally is
+   * unavailable everywhere, even when still linked). Plain DB read through an
+   * already-injected repository (not a degradable external facade like
+   * repo-intel), so unlike the digest builders below this doesn't swallow
+   * errors — a DB failure here should fail the run like any other DB error.
+   */
+  private async buildSkillsBodies(
+    agentId: string,
+    runLog: RunLogger,
+  ): Promise<{ bodies: string[]; ids: string[] }> {
+    const skills = await resolveEnabledSkills(this.agents, agentId);
+    if (skills.length > 0) runLog.info(`skills: ${skills.length} enabled skill(s) attached`);
+    return { bodies: skills.map((s) => s.body), ids: skills.map((s) => s.id) };
   }
 
   /**

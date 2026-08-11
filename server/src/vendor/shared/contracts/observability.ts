@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { Severity } from './findings.js';
+import { Severity, SeverityCounts, FindingCategory } from './findings.js';
+import { AgentRunSummary } from './trace.js';
 
 /**
  * A5 — Observability / Multi-agent contracts (L07).
@@ -108,15 +109,61 @@ export const AgentStats = z.object({
   total_cost_usd: z.number().nullable(),
   avg_cost_usd: z.number().nullable(),
   avg_latency_ms: z.number().nullable(),
-  findings_by_severity: z.object({
-    CRITICAL: z.number().int(),
-    WARNING: z.number().int(),
-    SUGGESTION: z.number().int(),
-  }),
+  findings_by_severity: SeverityCounts,
   /** recent runs for a small trend chart (oldest→newest). */
   trend: z.array(StatPoint),
+  /** Period-over-period change in avg_cost_usd vs. the preceding window; null
+   *  when there's no prior-period data to compare against. */
+  avg_cost_usd_delta: z.number().nullable(),
+  /** Top skills by share of this agent's runs in the stats window (skill
+   *  linked+enabled at run time — see RunTrace.skills_used), highest first. */
+  most_used_skills: z.array(z.object({ skill_id: z.string(), name: z.string(), pct: z.number() })),
+  /** Findings by severity, bucketed per week (oldest→newest) for a stacked
+   *  bar chart — a per-week breakdown of the flat `findings_by_severity` total. */
+  findings_by_severity_weekly: z.array(
+    z.object({
+      label: z.string(),
+      critical: z.number().int(),
+      warning: z.number().int(),
+      suggestion: z.number().int(),
+    }),
+  ),
+  /** Cost apportioned across findings by category (each finding's share =
+   *  its run's cost_usd / that run's findings_count, summed per category) —
+   *  a cost-apportionment heuristic, not a claimed true per-category cost. */
+  findings_by_category: z.array(z.object({ category: FindingCategory, cost_usd: z.number() })),
+  /** This agent's run history across every PR it has reviewed (newest first,
+   *  capped), for the Stats tab's run-history table. */
+  run_history: z.array(AgentRunSummary),
 });
 export type AgentStats = z.infer<typeof AgentStats>;
+
+// ---------------------------------------------------------------------------
+// Per-skill Stats (GET /skills/:id/stats)
+// ---------------------------------------------------------------------------
+
+/**
+ * A skill has no runs of its own — its stats are derived from the runs of
+ * whichever agents have it linked, filtered to the runs where it was
+ * actually active (`RunTrace.skills_used` contains this skill's id). Mirrors
+ * `AgentStats`'s accept-rate/findings-by-category methodology, just scoped
+ * differently (by skill usage across agents, not by agent ownership).
+ */
+export const SkillStats = z.object({
+  skill_id: z.string(),
+  skill_name: z.string(),
+  agent_count: z.number().int(),
+  /** Of the runs by agents linked to this skill, the fraction where it was
+   *  actually active (0-1). Null when no linked agent has run yet. */
+  pull_rate: z.number().nullable(),
+  /** Decided-only accept rate over findings from runs where this skill was
+   *  active (0-1). Null when nothing has been accepted/dismissed yet. */
+  accept_rate: z.number().nullable(),
+  findings_30d: z.number().int(),
+  findings_by_category: z.array(z.object({ category: FindingCategory, cost_usd: z.number() })),
+  agents: z.array(z.object({ agent_id: z.string(), agent_name: z.string() })),
+});
+export type SkillStats = z.infer<typeof SkillStats>;
 
 // ---------------------------------------------------------------------------
 // Cross-session memory curator

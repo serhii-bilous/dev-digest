@@ -12,6 +12,16 @@ pnpm db:generate && pnpm db:migrate         # schema change → migration → ap
 pnpm db:seed                                # idempotent demo data
 ```
 
+## Map
+
+- `modules/<name>/{routes,service,repository}.ts` — one feature module per
+  domain (`repos`, `pulls`, `reviews`, `agents`, `repo-intel`, `settings`,
+  `workspace`, `polling`).
+- `adapters/<port>/` — real implementations (llm, github, git, astgrep,
+  secrets, embedder, tokenizer); `adapters/mocks.ts` swaps them in tests.
+- `platform/container.ts` — DI container wiring adapters into services.
+- `db/schema/*.ts` — Drizzle table definitions; `db/migrations/*.sql` generated, do not hand-edit.
+
 ## Conventions
 
 - One feature = one `src/modules/<name>/` plugin, registered statically in
@@ -38,6 +48,12 @@ pnpm db:seed                                # idempotent demo data
   writes to. An empty table is expected, not a bug.
 - `repo-intel` clones into `server/clones/` — gitignored, and excluded from any
   search you run.
+
+## Do-not-touch
+
+- `db/migrations/*.sql` — regenerate via `pnpm db:generate`, never edit by hand.
+- `src/vendor/shared` — mirrors `client/src/vendor/shared`; check `diff` before
+  editing only one side.
 
 ## Read when
 

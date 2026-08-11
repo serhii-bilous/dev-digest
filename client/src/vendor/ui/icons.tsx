@@ -19,6 +19,7 @@ import {
   Plus,
   Check,
   CheckCircle,
+  Circle,
   X,
   XCircle,
   AlertTriangle,
@@ -79,6 +80,7 @@ import {
   Workflow,
   PanelRight,
   CornerDownRight,
+  GripVertical,
   type LucideIcon,
 } from "lucide-react";
 
@@ -101,6 +103,7 @@ export const Icon = {
   Plus,
   Check,
   CheckCircle,
+  Circle,
   X,
   XCircle,
   AlertTriangle,
@@ -162,6 +165,7 @@ export const Icon = {
   Workflow,
   PanelRight,
   CornerDownRight,
+  GripVertical,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof Icon;

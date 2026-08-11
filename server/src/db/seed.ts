@@ -6,6 +6,7 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 
 /** Default provider/model for the built-in reviewer agents. */
@@ -18,11 +19,13 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * with a few findings, six demo skills, and the four built-in agents (General +
+ * Security + Performance + Test Quality), all on the default
+ * openrouter/deepseek-v4-flash provider+model. Test Quality Reviewer ships with
+ * two skills pre-linked.
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * Course lessons populate the other tables (conventions, memory, eval, …) once
+ * their features are built — they start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -172,6 +175,18 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         suggestion: 'Use a single IN query and group in memory.',
         confidence: 0.86,
       },
+      {
+        reviewId: review!.id,
+        file: 'src/middleware/ratelimit.ts',
+        startLine: 30,
+        endLine: 30,
+        severity: 'SUGGESTION',
+        category: 'style',
+        title: 'Magic number for bucket size',
+        rationale: 'The token bucket capacity `100` is inlined at the call site.',
+        suggestion: 'Extract to a named `DEFAULT_BUCKET_SIZE` constant.',
+        confidence: 0.72,
+      },
     ]);
   }
 
@@ -218,6 +233,120 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- demo skills (L02) ----
+  // `test-coverage-nudge` is seeded with source: 'extracted' so it reads as
+  // having come through the file-import path, without actually calling the
+  // import endpoint (seed data, not an HTTP round-trip).
+  const seedSkills: Array<typeof t.skills.$inferInsert> = [
+    {
+      workspaceId,
+      name: 'pr-quality-rubric',
+      description: 'General PR quality checklist applied on top of the agent’s own review.',
+      type: 'rubric',
+      source: 'manual',
+      body: '# PR quality rubric\nWhen reviewing this diff, also check:\n- Every new branch (if/else, catch, early return) has a corresponding test.\n- Public function/route signatures are not changed without updating every caller.\n- No commented-out code or leftover debug logging in the diff.',
+      enabled: true,
+    },
+    {
+      workspaceId,
+      name: 'no-then-chains',
+      description: 'Flags Promise .then() chains in new code; this codebase standardizes on async/await.',
+      type: 'convention',
+      source: 'manual',
+      body: '# Convention: no .then() chains\nThis codebase uses async/await exclusively for promise handling. Flag any new `.then(...)`/`.catch(...)` chain in the diff and suggest the async/await equivalent.',
+      enabled: true,
+    },
+    {
+      workspaceId,
+      name: 'secret-leakage-gate',
+      description: 'Flags hardcoded secrets, API keys, and tokens committed in plaintext.',
+      type: 'security',
+      source: 'manual',
+      body: '# Secret leakage gate\nScan the diff for hardcoded secrets: API keys (`sk_live_`, `sk_test_`, `ghp_`, ...), private keys, passwords, or tokens committed in plaintext (code, config, fixtures, or test files). Flag every match as CRITICAL regardless of whether the surrounding code claims it is a placeholder or test value.',
+      enabled: true,
+    },
+    {
+      workspaceId,
+      name: 'lethal-trifecta',
+      description: 'Flags the lethal-trifecta pattern: untrusted content + private data access + an exfiltration path in one agent flow.',
+      type: 'security',
+      source: 'manual',
+      body: '# Lethal trifecta\nFlag any single flow where (1) untrusted content (PR body, web page, file, tool output) reaches an LLM/agent that also has (2) access to private data, with (3) a way to exfiltrate it (outbound call, tool, attacker-readable output). Require a concrete file:line for all three components before flagging — an authenticated API returning data to its own logged-in user is NOT this pattern.',
+      enabled: true,
+    },
+    {
+      workspaceId,
+      name: 'phantom-api-gate',
+      description: 'Flags calls to endpoints, routes, or methods that do not exist anywhere in the codebase.',
+      type: 'security',
+      source: 'manual',
+      body: '# Phantom API gate\nFlag any call to a route, RPC method, or external API endpoint referenced in the diff that has no matching definition anywhere in the codebase (a hallucinated or renamed-but-not-updated endpoint). This is a correctness/availability issue, not a style nit — report it even if the rest of the diff looks fine.',
+      enabled: true,
+    },
+    {
+      workspaceId,
+      name: 'test-coverage-nudge',
+      description: 'Flags new branches, error paths, and edge cases introduced without a corresponding test.',
+      type: 'custom',
+      source: 'extracted',
+      body: '# Test coverage nudge\nFor every new branch, error path, or edge case introduced in the production diff, confirm the test diff exercises it. If a new `if`/`catch`/early-return has no test that takes the untaken path, flag it — name the specific branch, not a generic "add more tests" note.',
+      enabled: true,
+    },
+  ];
+  const skillIdByName = new Map<string, string>();
+  for (const sk of seedSkills) {
+    const [existing] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, sk.name)));
+    if (existing) {
+      skillIdByName.set(sk.name, existing.id);
+    } else {
+      const [inserted] = await db.insert(t.skills).values(sk).returning();
+      await db.insert(t.skillVersions).values({
+        skillId: inserted!.id,
+        version: inserted!.version,
+        body: inserted!.body,
+      });
+      skillIdByName.set(sk.name, inserted!.id);
+    }
+  }
+
+  // ---- Test Quality Reviewer (L02) — 4th built-in agent, ships with 2 linked skills ----
+  const [existingTestAgent] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Test Quality Reviewer')));
+  let testAgentId = existingTestAgent?.id;
+  if (!existingTestAgent) {
+    const [inserted] = await db
+      .insert(t.agents)
+      .values({
+        workspaceId,
+        name: 'Test Quality Reviewer',
+        description: 'Flags uncovered branches, missed edge cases, excessive mocking, and flaky-test patterns.',
+        provider: DEFAULT_PROVIDER,
+        model: DEFAULT_MODEL,
+        systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+        enabled: true,
+        version: 1,
+        createdBy: userId,
+      })
+      .returning();
+    testAgentId = inserted!.id;
+  }
+  if (testAgentId) {
+    const testCoverageId = skillIdByName.get('test-coverage-nudge');
+    const rubricId = skillIdByName.get('pr-quality-rubric');
+    const links = [
+      testCoverageId ? { agentId: testAgentId, skillId: testCoverageId, order: 0 } : null,
+      rubricId ? { agentId: testAgentId, skillId: rubricId, order: 1 } : null,
+    ].filter((l): l is { agentId: string; skillId: string; order: number } => l !== null);
+    for (const link of links) {
+      await db.insert(t.agentSkills).values(link).onConflictDoNothing();
+    }
   }
 
   return { workspaceId, userId };

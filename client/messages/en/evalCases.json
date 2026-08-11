@@ -1,0 +1,47 @@
+{
+  "title": "Eval cases",
+  "summary": "{passing} / {total} passing",
+  "runAll": "Run all evals",
+  "newCase": "New eval case",
+  "empty": "No eval cases yet. Add one to start checking against known inputs.",
+  "neverRun": "never run",
+  "expectedGot": "expected {expected} finding(s), got {actual}",
+  "emptyBadge": "empty []",
+  "runCase": "Run",
+  "editCase": "Edit",
+  "deleteCase": "Delete",
+  "deleteConfirm": "Delete eval case \"{name}\"? This cannot be undone.",
+  "runFailed": "Eval run failed",
+  "runPassed": "\"{name}\" passed",
+  "runFailedResult": "\"{name}\" failed",
+  "modal": {
+    "createTitle": "New eval case",
+    "editTitle": "Edit eval case",
+    "subtitle": "A known diff + the findings you expect this to produce against it.",
+    "nameLabel": "Name",
+    "namePlaceholder": "stripe-key-leak",
+    "diffLabel": "Input diff",
+    "diffHint": "A unified diff (git diff format) — the input this case reviews.",
+    "diffPlaceholder": "diff --git a/src/config.ts b/src/config.ts\n--- a/src/config.ts\n+++ b/src/config.ts\n@@ -10,3 +10,4 @@\n   port: 3000,\n+  stripeKey: \"sk_live_xxx\",\n   redisUrl: x,",
+    "expectedLabel": "Expected findings",
+    "expectedHint": "What this should find in the diff above. Leave empty to expect a clean pass (no findings).",
+    "addExpected": "+ Add expected finding",
+    "removeExpected": "Remove",
+    "cancel": "Cancel",
+    "save": "Save case",
+    "saving": "Saving…",
+    "create": "Create case"
+  },
+  "severity": {
+    "CRITICAL": "Critical",
+    "WARNING": "Warning",
+    "SUGGESTION": "Suggestion"
+  },
+  "category": {
+    "bug": "Bug",
+    "security": "Security",
+    "perf": "Performance",
+    "style": "Style",
+    "test": "Test"
+  }
+}

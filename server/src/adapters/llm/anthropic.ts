@@ -69,7 +69,9 @@ export class AnthropicProvider implements LLMProvider {
       system: system || undefined,
       messages: rest,
       max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
-      temperature: req.temperature ?? 0.2,
+      // Newer models (e.g. Opus 5) reject `temperature` outright (400) — only
+      // send it when the caller explicitly asked for a non-default value.
+      ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
     });
     const text = res.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -104,7 +106,9 @@ export class AnthropicProvider implements LLMProvider {
             system: system || undefined,
             messages,
             max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
-            temperature: req.temperature ?? 0,
+            // Newer models (e.g. Opus 5) reject `temperature` outright (400) — only
+            // send it when the caller explicitly asked for a non-default value.
+            ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
             tools: [
               {
                 name: toolName,
