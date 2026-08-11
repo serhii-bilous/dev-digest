@@ -1,22 +1,19 @@
-# server/ — CLAUDE.md
-
-`@devdigest/api` — Fastify + Drizzle/Postgres. Map only; see `README.md` for
-the request/DI-flow diagram and API map.
-
-## Stack
-Fastify 5 · Drizzle ORM · `postgres` (pgvector) · Zod via
-`fastify-type-provider-zod` · tsx (dev) · vitest.
+# server (`@devdigest/api`) — agent notes
 
 ## Commands
-```
-pnpm dev                                              # :3001, tsx watch
-pnpm db:generate                                       # after editing db/schema/*.ts
-pnpm db:migrate                                         # NOT automatic on boot
-pnpm exec vitest run --exclude '**/*.it.test.ts'         # unit only, no Docker
-pnpm exec vitest run .it.test                            # integration, needs Docker
+
+```sh
+pnpm dev                                    # tsx watch, :3001
+pnpm typecheck                              # tsc --noEmit
+pnpm test                                   # everything
+pnpm exec vitest run --exclude '**/*.it.test.ts'   # hermetic units only
+pnpm exec vitest run .it.test                      # DB-backed only
+pnpm db:generate && pnpm db:migrate         # schema change → migration → apply
+pnpm db:seed                                # idempotent demo data
 ```
 
 ## Map
+
 - `modules/<name>/{routes,service,repository}.ts` — one feature module per
   domain (`repos`, `pulls`, `reviews`, `agents`, `repo-intel`, `settings`,
   `workspace`, `polling`).
@@ -25,25 +22,43 @@ pnpm exec vitest run .it.test                            # integration, needs Do
 - `platform/container.ts` — DI container wiring adapters into services.
 - `db/schema/*.ts` — Drizzle table definitions; `db/migrations/*.sql` generated, do not hand-edit.
 
-## Read when
-- Adding/changing a route, DI wiring, or the error envelope → `README.md` (request & DI flow diagram).
-- Touching prompt assembly or the grounding gate → `../reviewer-core/README.md`.
-- Writing a DB-backed test → `test/helpers/pg.ts` + `../TESTING.md` (must be named `*.it.test.ts`).
-- Drafting a change before building it → `specs/`. A gotcha not obvious from
-  the code → `INSIGHTS.md`. Deeper design notes → `docs/`.
-- Finishing a task with a non-obvious lesson → capture it via
-  `.claude/skills/engineering-insights` (or run `/engineering-insights`);
-  treat existing `INSIGHTS.md` entries as high-confidence guidance before
-  starting related work.
+## Conventions
+
+- One feature = one `src/modules/<name>/` plugin, registered statically in
+  `src/modules/index.ts` (one import + one `app.register`).
+- Routes declare Zod `params`/`body`/response schemas from `@devdigest/shared`
+  via `fastify-type-provider-zod`. Invalid input is rejected with `422` **before**
+  the handler runs — never hand-roll `Schema.parse(req.body)`.
+- Plugins (helmet, cors, rate-limit, SSE) register **before** modules so the
+  encapsulated module plugins inherit them and the shared error handler.
+- External I/O goes through an adapter behind the DI container
+  (`src/platform/container.ts`) so tests can swap in `src/adapters/mocks.ts`.
+- Schema changes: edit `src/db/schema.ts`, then `pnpm db:generate`. Never
+  hand-write a migration file.
+- Secrets are read only through `LocalSecretsProvider`
+  (`src/adapters/secrets/local.ts`). `GITHUB_TOKEN` is canonical; `GITHUB_PAT` is
+  accepted as a fallback.
 
 ## Gotchas
-- The unit/integration split is by **filename**, not folder — a DB-backed test
-  not suffixed `*.it.test.ts` silently runs (and fails) in the wrong CI job.
-- `REPO_INTEL_ENABLED` defaults to `true` but degrades silently to a diff-only
-  prompt when the repo isn't indexed yet — no error is raised.
-- `GITHUB_TOKEN` is canonical; `GITHUB_PAT` is only a legacy fallback.
+
+- Migrations are **not** applied on boot.
+- `loadConfig` marks every secret optional — the server boots with no keys, so a
+  missing key surfaces at call time, not at startup.
+- The DB schema already contains every table, including ones no starter code
+  writes to. An empty table is expected, not a bug.
+- `repo-intel` clones into `server/clones/` — gitignored, and excluded from any
+  search you run.
 
 ## Do-not-touch
+
 - `db/migrations/*.sql` — regenerate via `pnpm db:generate`, never edit by hand.
 - `src/vendor/shared` — mirrors `client/src/vendor/shared`; check `diff` before
   editing only one side.
+
+## Read when
+
+- Read `INSIGHTS.md` first for what was already tried here, and run the
+  `engineering-insights` skill at the end of the task to add to it.
+- Read `README.md` for the API map and the request/DI flow diagram.
+- Read `src/modules/repo-intel/README.md` when touching indexing or the repo map.
+- Read `../TESTING.md` before adding a test or changing the unit/integration split.

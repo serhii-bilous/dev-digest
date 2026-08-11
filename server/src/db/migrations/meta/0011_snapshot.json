@@ -1,6 +1,6 @@
 {
-  "id": "90af4b44-a872-4d71-aa21-def740aef7b8",
-  "prevId": "9a233011-0636-4885-8c7e-842fad407021",
+  "id": "0507f037-9f75-4bd2-aa84-a80183e27ba3",
+  "prevId": "0e43a299-6567-4757-8638-56b54d3b48dc",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1453,6 +1453,112 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.convention_scans": {
+      "name": "convention_scans",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "repo_id": {
+          "name": "repo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sample_file_count": {
+          "name": "sample_file_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "candidate_count": {
+          "name": "candidate_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pull_number": {
+          "name": "pull_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scanned_at": {
+          "name": "scanned_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "convention_scans_repo_scanned_idx": {
+          "name": "convention_scans_repo_scanned_idx",
+          "columns": [
+            {
+              "expression": "repo_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scanned_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "convention_scans_workspace_id_workspaces_id_fk": {
+          "name": "convention_scans_workspace_id_workspaces_id_fk",
+          "tableFrom": "convention_scans",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "convention_scans_repo_id_repos_id_fk": {
+          "name": "convention_scans_repo_id_repos_id_fk",
+          "tableFrom": "convention_scans",
+          "tableTo": "repos",
+          "columnsFrom": [
+            "repo_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.conventions": {
       "name": "conventions",
       "schema": "",
@@ -1476,6 +1582,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "rule": {
           "name": "rule",
           "type": "text",
@@ -1485,6 +1597,18 @@
         "evidence_path": {
           "name": "evidence_path",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidence_line_start": {
+          "name": "evidence_line_start",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidence_line_end": {
+          "name": "evidence_line_end",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -1506,6 +1630,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {},

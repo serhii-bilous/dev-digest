@@ -46,7 +46,7 @@ export const s = {
     gap: 6,
     flexWrap: "wrap",
   } satisfies CSSProperties,
-  costCell: { fontSize: 13, color: "var(--text-secondary)" } satisfies CSSProperties,
+  costCell: { fontSize: 12, color: "var(--text-secondary)" } satisfies CSSProperties,
   updatedCell: {
     fontSize: 12,
     color: "var(--text-muted)",

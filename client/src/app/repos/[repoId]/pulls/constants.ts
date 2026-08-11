@@ -23,7 +23,8 @@ export const SIZE_COLOR: Record<string, string> = {
   L: "var(--crit)",
 };
 
-/** Grid template for both the header row and PR rows. */
+/** Grid template for both the header row and PR rows. Must stay in lockstep
+    with COLUMN_KEYS below and with PRRow's cells — three separate declarations. */
 export const GRID = "1fr 132px 92px 60px 120px 118px 70px 78px";
 
 /** Line-count thresholds for the S/M/L size bucket. */

@@ -1,5 +1,10 @@
-# client/docs/
+# client/docs
 
-Deeper design notes on `client/` that don't fit `README.md`'s map (e.g. a
-walkthrough of one non-obvious subsystem). `README.md` stays the single
-source of truth for the UI route map diagram — link to it, don't restate it here.
+How the studio works today. Deep dives too long for `README.md`.
+
+Good candidates: the TanStack Query cache/invalidation strategy, the app-shell
+and `g`-then-key shortcut map, the `next-intl` message workflow, diff-rendering
+internals, loading/error conventions for RSC boundaries.
+
+Not here: the UI route map (that is `../README.md`), intent for unbuilt screens
+(`../specs/`), rejected approaches (`../INSIGHTS.md`).

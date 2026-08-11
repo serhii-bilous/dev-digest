@@ -1,42 +1,59 @@
-# e2e/ — CLAUDE.md
+# e2e (`@devdigest/e2e`) — agent notes
 
-`@devdigest/e2e` — deterministic browser e2e via **agent-browser** (native
-Rust+CDP CLI). Map only; see `README.md` for how a flow works and coverage.
-
-## Stack
-`agent-browser` CLI (no Playwright, no LLM, no API key) · plain JSON flow specs.
+**npm, not pnpm.** Own `package-lock.json`.
 
 ## Commands
-```
-./scripts/e2e.sh                    # hermetic: isolated Postgres/API/web on alt ports, seeded fresh
-cd e2e && npm test                  # against your own running dev stack (see precondition below)
+
+```sh
+npm i -g agent-browser && agent-browser install   # once — downloads Chrome for Testing
+npm run e2e:hermetic    # RECOMMENDED: isolated seeded stack (:5433/:3101/:3100)
+npm test                # runs flows against whatever is on E2E_BASE_URL
+npm run typecheck
 ```
 
 ## Map
+
 - `specs/NN-name.flow.json` — **this is where the flows themselves live**, not
   feature specs. Each file is an ordered list of `agent-browser` commands +
   deterministic assertions (`wait --text` / `wait --url`).
 - `run.ts` — executes one shared browser session across all flow files.
 - `lib/assert.ts` — shared assertion helpers.
 
-## Read when
-- Writing/debugging a flow → `README.md` ("How a flow works" + the precondition warning).
-- A flow needs new coverage → add a `specs/NN-name.flow.json`, update the coverage table in `README.md`.
-- A gotcha not obvious from a flow's JSON → `INSIGHTS.md`.
-- Finishing a task with a non-obvious lesson → capture it via
-  `.claude/skills/engineering-insights` (or run `/engineering-insights`);
-  treat existing `INSIGHTS.md` entries as high-confidence guidance before
-  starting related work.
+## Conventions
+
+- A flow is `specs/NN-name.flow.json`: a JSON list of agent-browser commands run
+  in order against one shared browser session by `run.ts`.
+- `{BASE}` is substituted with `E2E_BASE_URL` (default `http://localhost:3000`).
+- **`wait --text` / `wait --url` are the assertions** — they exit non-zero on
+  timeout. Optional `"assert": { "stdoutIncludes": … }` adds a stdout check.
+- **Deterministic locators only**: `--url`, `--text`, `find role|text|label`.
+  Never use the AI `chat` command — runs must stay stable and key-free.
+- Flows target read-only seeded data (`acme/payments-api`, PR #482, seeded
+  agents) so nothing triggers a model call. Do not add a flow that writes.
 
 ## Gotchas
-- Flows 02/04/05 assume the seeded demo repo (`acme/payments-api`) is the
-  **only** repo in the DB — running against a dev DB with other imported
-  repos makes them fail on the wrong repo. Use the hermetic runner, not your
-  personal dev stack, unless you know your DB only has the seed data.
-- Never `docker compose down -v` to "reset" — `-v` deletes the persistent
-  `devdigest_pgdata` volume (every real repo/review you've imported), not
-  just the e2e run's state.
+
+- **Flows assume a freshly-seeded DB with exactly one repo.** Flow `02` follows
+  the home redirect to the *first* repo. Your dev DB usually has other imported
+  repos, so plain `npm test` against it fails flows 02/04/05. Use
+  `npm run e2e:hermetic`.
+- **Never `docker compose down -v`** to fix this — `-v` deletes the
+  `devdigest_pgdata` volume and every real repo and review in it. The hermetic
+  runner exists precisely so you never need to touch the dev DB.
+- This is a CLI wrapper, not a test framework: a failing step fails the flow with
+  the raw agent-browser exit, so read stderr rather than expecting a matcher diff.
 
 ## Do-not-touch
+
 - No `chat`/AI locator commands — flows must stay deterministic and key-free;
   don't introduce a non-deterministic locator to fix a flaky step.
+
+## Read when
+
+- Read `INSIGHTS.md` first for what was already tried here, and run the
+  `engineering-insights` skill at the end of the task to add to it.
+- Read `README.md` for the flow format and the full hermetic-runner walkthrough.
+- Read `docs/` for this package's written specs — `specs/` holds executable
+  `*.flow.json` files, so prose lives in `docs/` instead.
+- Read `../client/README.md` when a flow breaks after a UI route change.
+- Read `../TESTING.md` for where this suite sits in the overall strategy.

@@ -1,54 +1,100 @@
-# DevDigest — CLAUDE.md
+# DevDigest — agent map
 
-Local-first AI PR review. Course starter (see README.md for the full lesson
-roadmap and architecture diagram) — this file is a map, not documentation.
+## Before answering
+
+Before answering any question or starting any task, FIRST search the relevant
+package's `docs/`, `specs/` and `INSIGHTS.md` for what was asked about. These are
+curated and may already answer it in full. Only after that, read the code.
+
+Order: `<module>/specs/` (what we intend to build) → `<module>/docs/` (how it
+works) → `<module>/INSIGHTS.md` (what we already tried and rejected) → source.
+If a curated file answers the question, cite it instead of re-deriving from code.
+
+## After finishing
+
+Run the `engineering-insights` skill at the end of any non-trivial task. It
+records what was learned into the `INSIGHTS.md` of the module you touched, after
+checking that a similar entry isn't already there. **Do not skip this step.**
+
+Skip only the writing, and only when nothing non-obvious came up — a typo or a
+routine change is not an insight, and noise costs more than silence.
 
 ## Stack
-Node ≥22 · pnpm ≥10 · TypeScript 5.7 · Docker (Postgres 16 + pgvector, DB only).
+
+Node ≥22 · pnpm ≥10 · TypeScript · Fastify 5 · Next.js 15 / React 19 ·
+Drizzle ORM + Postgres (pgvector) · Zod · Vitest · agent-browser (e2e)
 
 ## Commands
-```
-./scripts/dev.sh                 # boots Postgres + migrates + seeds + API + web
-cd server && pnpm test            # unit + integration
-cd client && pnpm test            # vitest + jsdom
-cd reviewer-core && pnpm test     # hermetic engine tests
-./scripts/e2e.sh                  # hermetic browser e2e
-```
 
-## Package map
-| Package | What | Own CLAUDE.md |
-|---|---|---|
-| `server/` | Fastify API + Drizzle/Postgres | `server/CLAUDE.md` |
-| `client/` | Next.js studio UI | `client/CLAUDE.md` |
-| `reviewer-core/` | pure review engine (diff→prompt→LLM→findings) | `reviewer-core/CLAUDE.md` |
-| `e2e/` | deterministic browser e2e | `e2e/CLAUDE.md` |
+| Task            | Command                                                    |
+| --------------- | ---------------------------------------------------------- |
+| Boot everything | `./scripts/dev.sh` (Postgres + API :3001 + web :3000)      |
+| Server          | `cd server && pnpm dev \| build \| typecheck \| test`      |
+| Migrations      | `cd server && pnpm db:generate` then `pnpm db:migrate`     |
+| Client          | `cd client && pnpm dev \| build \| typecheck \| test`      |
+| Engine          | `cd reviewer-core && npm test \| npm run typecheck`        |
+| E2E (hermetic)  | `cd e2e && npm run e2e:hermetic`                            |
 
-Each package's own `CLAUDE.md` auto-loads when you touch a file inside it —
-this root file only carries what's true across all of them.
+Flags for `dev.sh`: `--no-seed` · `--no-client` · `--db-only` · `--help`.
 
-## Read when
-- Working inside a package → that package's own `CLAUDE.md` loads
-  automatically; its `README.md` is the source of truth for diagrams.
-- Understanding the full review pipeline / architecture diagram → `README.md`.
-- Test strategy (unit vs integration split, CI workflows) → `TESTING.md`.
-- A per-package feature spec, deeper design note, or lesson learned →
-  `<package>/specs/`, `<package>/docs/`, `<package>/INSIGHTS.md`.
+## Where things live
 
-## Non-default conventions
+| Path                        | What                                                     |
+| --------------------------- | -------------------------------------------------------- |
+| `server/`                   | Fastify API + Drizzle. Indexer at `src/modules/repo-intel/` |
+| `client/`                   | Next.js studio, App Router                                |
+| `reviewer-core/`            | Pure engine: diff + repo map → prompt → LLM → findings    |
+| `e2e/`                      | Deterministic browser flows, no LLM                       |
+| `server/src/vendor/shared/` | `@devdigest/shared` — Zod contracts for every package     |
+| `client/src/vendor/ui/`     | `@devdigest/ui` — vendored UI primitives                  |
+
+## Conventions (non-default — you cannot infer these from the code)
+
+- **Not a monorepo workspace.** Each package has its own `package.json` and its
+  own lockfile. `server/` + `client/` use **pnpm**; `reviewer-core/` + `e2e/` use
+  **npm**. Never run the wrong package manager in a package.
+- Cross-package imports resolve through **tsconfig path aliases**, not published
+  modules. `reviewer-core` is consumed as TypeScript **source** and never emits
+  JS — its `build` is a typecheck.
+- Contracts change in `@devdigest/shared` **first**, then in consumers. The same
+  Zod schema drives request validation and response serialization.
+- Server tests split by filename: `*.it.test.ts` are DB-backed (testcontainers
+  Postgres). Everything else must stay hermetic.
+- Secrets live in `~/.devdigest/secrets.json` (mode 0600) with `process.env` as
+  fallback — never in git or the database.
 - Branch naming: `feat/<TAG>-<kebab-case-description>`, e.g.
   `feat/HW1-findings`, `feat/LAB2-implementing-skills`. `<TAG>` is the
-  assignment/lesson identifier (e.g. `HW1`, `LAB2`); the description is a
-  short kebab-case summary of the work.
-- **Not** a monorepo workspace — each package has its own lockfile; install per
-  folder (`cd server && pnpm install`, etc). Cross-package sharing (e.g.
-  `@devdigest/shared` Zod contracts) is via tsconfig path aliases, not a
-  published/linked package.
-- Migrations are **never** applied automatically on boot — always
-  `pnpm db:migrate` by hand after pulling schema changes.
-- Secrets (API keys, GitHub token) live in `~/.devdigest/secrets.json`
-  (mode `0600`), never in `.env`, the DB, or git.
+  assignment/lesson identifier; the description is a short kebab-case summary
+  of the work.
 
-## Do-not-touch
-- `server/src/db/migrations/*.sql` — generated via `pnpm db:generate`; never hand-edit.
-- `server/src/vendor/shared` and `client/src/vendor/shared` — manually mirrored
-  copies of the same contracts; they can drift (`diff` them before editing only one side).
+## Gotchas
+
+- **Migrations do not run on boot.** `relation ... does not exist` means you
+  skipped `pnpm db:migrate`.
+- **Never `docker compose down -v`** to "reset" — `-v` destroys the
+  `devdigest_pgdata` volume and every imported repo and review with it.
+- The server reaps orphaned `running` runs on boot; a run stuck in `running` is
+  usually a crashed process, not a logic bug.
+
+## Do not touch
+
+- `server/clones/**` — cloned user repos, including a full copy of dev-digest
+  itself. **Always exclude it from grep and glob** or you will read and edit the
+  wrong file. Gitignored; never commit its contents.
+- `**/src/vendor/**` — vendored. Exception: `vendor/shared` changes only as part
+  of a deliberate contract change.
+- `**/node_modules/**`, `pnpm-lock.yaml`, `package-lock.json`.
+
+## Read when
+
+- Read `TESTING.md` when adding a test or touching CI.
+- Read `docs/agent-prompts/` when changing a built-in agent's system prompt or
+  choosing a model.
+- Read `server/README.md` when adding or changing an API route.
+- Read `client/README.md` when adding a page or a data hook.
+- Read `reviewer-core/README.md` when touching prompt assembly, structured
+  output, or the grounding gate.
+- Read `e2e/README.md` before writing or debugging a browser flow.
+- Read `INSIGHTS.md` at repo root for decisions that span more than one package.
+- Use the `engineering-insights` skill to read or record an insight — it maps a
+  touched path to the right `INSIGHTS.md` and holds the format and quality bar.

@@ -4,6 +4,8 @@ import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PrMeta } from "@/lib/types";
 import messages from "../../../../../../../messages/en/prReview.json";
+// RunCostBadge in the cost cell reads the `runs` namespace.
+import runsMessages from "../../../../../../../messages/en/runs.json";
 import { PRRow } from "./PRRow";
 
 vi.mock("next/navigation", () => ({
@@ -38,7 +40,7 @@ function renderRow(row: PrMeta) {
   const qc = new QueryClient();
   return render(
     <QueryClientProvider client={qc}>
-      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages, runs: runsMessages }}>
         <PRRow pr={row} repoId="repo-1" />
       </NextIntlClientProvider>
     </QueryClientProvider>,
@@ -46,7 +48,7 @@ function renderRow(row: PrMeta) {
 }
 
 describe("PRRow — cost cell", () => {
-  it("shows the formatted aggregate cost for a reviewed PR", () => {
+  it("shows the formatted cost for a reviewed PR", () => {
     renderRow(pr({ cost_usd: 0.05 }));
     expect(screen.getByText("$0.05")).toBeInTheDocument();
   });

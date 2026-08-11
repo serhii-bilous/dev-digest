@@ -1,19 +1,16 @@
-# reviewer-core/ — CLAUDE.md
+# reviewer-core (`@devdigest/reviewer-core`) — agent notes
 
-`@devdigest/reviewer-core` — pure review engine, diff → prompt → LLM →
-grounded findings. Map only; see `README.md` for the pipeline diagram.
-
-## Stack
-Plain TypeScript · Zod · vitest. No DB/FS/network side effects except one
-**injected** `LLMProvider` — that's what makes it mock-testable.
+**npm, not pnpm.** This package has its own `package-lock.json`.
 
 ## Commands
-```
-pnpm test         # hermetic, stubbed LLMProvider — no keys, no network
-pnpm typecheck    # doubles as "build" — package never emits JS
+
+```sh
+npm test           # vitest, hermetic, stubbed LLMProvider — no keys, no network
+npm run typecheck  # tsc --noEmit — this IS the build; the package emits no JS
 ```
 
 ## Map
+
 - `prompt.ts` — `assemblePrompt()`: diff + system prompt + repo map → final
   prompt; `wrapUntrusted()` / `INJECTION_GUARD` live here.
 - `grounding.ts` — `groundFindings()`: mandatory citation gate, drops findings
@@ -22,25 +19,40 @@ pnpm typecheck    # doubles as "build" — package never emits JS
 - `review/run.ts` — orchestrates one review pass.
 - `output/to-review.ts` — CI payload shaping (consumed starting course lesson L06).
 
-## Read when
-- Changing prompt assembly or the injection defense → `README.md` (pipeline
-  diagram). `INJECTION_GUARD` is a deliberate trust-boundary rule, not a
-  keyword filter — don't turn it into one.
-- Adding a new optional prompt slot (skills/memory/specs) → check the existing
-  slot pattern in `assemblePrompt` first, it's designed for this.
-- Drafting a change before building it → `specs/`. A gotcha not obvious from
-  the code → `INSIGHTS.md`. Deeper design notes → `docs/`.
-- Finishing a task with a non-obvious lesson → capture it via
-  `.claude/skills/engineering-insights` (or run `/engineering-insights`);
-  treat existing `INSIGHTS.md` entries as high-confidence guidance before
-  starting related work.
+## Conventions
+
+- **Purity is the contract.** No database, no GitHub, no filesystem. The only
+  side effect is an LLM call through an **injected** `LLMProvider`. Anything that
+  needs I/O belongs in `server/`, not here.
+- Consumed as TypeScript source through a tsconfig path alias. Never add a build
+  step or import from `dist`.
+- The public surface is whatever `src/index.ts` exports. Adding an export is an
+  API change; check `server/` consumers first.
+- Contracts (`Review`, `Finding`, `Verdict`, …) come from `@devdigest/shared`.
+- Untrusted content (diffs, PR bodies) must be fenced with `wrapUntrusted()` +
+  `INJECTION_GUARD` before it reaches the prompt.
 
 ## Gotchas
-- The model's self-reported score is discarded — `groundFindings()` recomputes
-  it from surviving findings only. Don't trust a raw score from new LLM output.
-- Consumed as TypeScript **source** via a tsconfig path alias, not a build
-  artifact — don't add a real bundler step without checking every consumer.
+
+- **The grounding gate is mandatory.** A finding that does not cite a real line
+  in the diff is dropped. Do not add a bypass — it is what stops hallucinated
+  locations.
+- The score is **recomputed deterministically** from the surviving findings. The
+  model's own score is never trusted.
+- `assemblePrompt` accepts optional slots (`skills`, `memory`, `specs`,
+  `callers`) that the starter does not fill. Omitted slots render as no section —
+  an empty section in the prompt means a caller passed an empty value.
 
 ## Do-not-touch
+
 - `grounding.ts`'s citation gate — the safety mechanism against hallucinated
   line references; loosening it needs explicit sign-off.
+
+## Read when
+
+- Read `INSIGHTS.md` first for what was already tried here, and run the
+  `engineering-insights` skill at the end of the task to add to it.
+- Read `README.md` for the pipeline diagram and the full public API.
+- Read `docs/` before changing prompt assembly or the grounding heuristics.
+- Read `../docs/agent-prompts/` when the task concerns a built-in agent's system
+  prompt or model choice.

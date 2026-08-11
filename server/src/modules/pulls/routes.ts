@@ -203,19 +203,21 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Cumulative $ spent reviewing each PR — sum across EVERY agent run ever
-    // recorded for it (unlike score, which reflects only the latest review),
-    // since this tracks actual historical spend. A real SQL aggregate (not
-    // JS grouping) since it's a sum, not a pick-latest.
-    const costByPr = new Map<string, number>();
+    // Latest-run COST per PR for the list's cost column. Same shape as the score
+    // block above: one IN-query, newest-first, first-seen-per-PR wins. This is
+    // deliberately the LATEST COMPLETED run's cost, not a sum over all runs —
+    // the column answers "what does reviewing this PR cost", not "what have I
+    // spent on it". Only status='done' rows count, so a later failed run cannot
+    // blank out the last successful one.
+    const latestCostByPr = new Map<string, number | null>();
     if (prIds.length > 0) {
-      const costRows = await container.db
-        .select({ prId: t.agentRuns.prId, total: sql<string | null>`sum(${t.agentRuns.costUsd})` })
+      const runRows = await container.db
+        .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
         .from(t.agentRuns)
-        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.workspaceId, workspaceId)))
-        .groupBy(t.agentRuns.prId);
-      for (const row of costRows) {
-        if (row.prId && row.total != null) costByPr.set(row.prId, Number(row.total));
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
+        .orderBy(desc(t.agentRuns.ranAt));
+      for (const run of runRows) {
+        if (run.prId && !latestCostByPr.has(run.prId)) latestCostByPr.set(run.prId, run.costUsd);
       }
     }
 
@@ -243,7 +245,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
-        cost_usd: costByPr.get(r.id) ?? null,
+        cost_usd: latestCostByPr.get(r.id) ?? null,
         findings: findingsByPr.get(r.id) ?? null,
       };
     });

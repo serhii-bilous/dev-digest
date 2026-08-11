@@ -6,7 +6,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { MetricCard, CircularScore, BarRow, Donut, StackedBarChart, Skeleton } from "@devdigest/ui";
-import { formatCost, formatTokenCount } from "@/lib/format";
+import { formatCostUsd, formatTokenCount } from "@/lib/format";
 import { RunTraceDrawer } from "@/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer";
 import { useAgentStats } from "../../../../../../../lib/hooks/stats";
 import { CATEGORY_COLOR, SEVERITY_KEYS } from "./constants";
@@ -53,7 +53,7 @@ export function StatsTab({ agentId }: { agentId: string }) {
         <MetricCard label={t("stats.totalRuns")} value={stats.runs} trend={trend} />
         <MetricCard
           label={t("stats.avgCost")}
-          value={formatCost(stats.avg_cost_usd)}
+          value={formatCostUsd(stats.avg_cost_usd)}
           delta={stats.avg_cost_usd_delta ?? undefined}
         />
         <MetricCard
@@ -121,7 +121,7 @@ export function StatsTab({ agentId }: { agentId: string }) {
                 <span style={s.mono}>{r.ran_at ? new Date(r.ran_at).toLocaleDateString() : "—"}</span>
                 <span className="mono">{r.pr_number != null ? `#${r.pr_number}` : "—"}</span>
                 <span className="mono">{formatTokenCount((r.tokens_in ?? 0) + (r.tokens_out ?? 0))}</span>
-                <span className="mono">{formatCost(r.cost_usd)}</span>
+                <span className="mono">{formatCostUsd(r.cost_usd)}</span>
                 <span className="mono">{r.findings_count ?? "—"}</span>
                 <span>{r.source ?? "—"}</span>
                 <button

@@ -9,6 +9,8 @@ import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { RunSummary, FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
+// RunCostBadge on each settled row reads the `runs` namespace.
+import runsMessages from "../../../../../../../../messages/en/runs.json";
 import { RunHistory } from "./RunHistory";
 
 afterEach(cleanup);
@@ -59,7 +61,7 @@ function run(o: Partial<RunSummary>): RunSummary {
 
 function renderRuns(runs: RunSummary[], findingsByRun?: Map<string, FindingRecord[]>) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+    <NextIntlClientProvider locale="en" messages={{ prReview: messages, runs: runsMessages }}>
       <RunHistory runs={runs} onOpenTrace={() => {}} findingsByRun={findingsByRun} />
     </NextIntlClientProvider>,
   );
@@ -100,9 +102,7 @@ describe("RunHistory — outcome badge", () => {
 describe("RunHistory — tokens & cost", () => {
   it("shows the combined token count and cost on a settled run", () => {
     renderRuns([run({ status: "done", tokens_in: 9000, tokens_out: 119, cost_usd: 0.0013 })]);
-    // Adaptive precision: 2 decimals round 0.0013 to "0.00", so it extends to
-    // 3 decimals so the sub-cent cost doesn't disappear.
-    expect(screen.getByText("9 119 tok · $0.001")).toBeInTheDocument();
+    expect(screen.getByText("9 119 tok · $0.0013")).toBeInTheDocument();
   });
 
   it("hides the tokens/cost line on a run that hasn't settled", () => {

@@ -4,7 +4,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
 import type { RunSummary, PrCommit, FindingRecord } from "@devdigest/shared";
-import { formatCost, formatTokenCount } from "@/lib/format";
+import { RunCostBadge } from "@/components/run-cost-badge";
 import { FindingsHoverCard, SeverityBadges } from "@/components/findings-hover-card";
 import { countBySeverity } from "../FindingsPanel/helpers";
 
@@ -221,9 +221,11 @@ export function RunHistory({
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
               {settled && (
-                <span>
-                  {formatTokenCount((r.tokens_in ?? 0) + (r.tokens_out ?? 0))} · {formatCost(r.cost_usd)}
-                </span>
+                <RunCostBadge
+                  variant="withTokens"
+                  tokens={(r.tokens_in ?? 0) + (r.tokens_out ?? 0)}
+                  cost={r.cost_usd}
+                />
               )}
             </div>
             <button

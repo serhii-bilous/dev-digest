@@ -199,7 +199,11 @@ export class ReviewRepository {
       durationMs: number;
       tokensIn: number;
       tokensOut: number;
-      costUsd: number | null;
+      /**
+       * USD billed for this run. Omit (or pass null) on failed/cancelled runs and
+       * whenever the model is unpriced — 0 would claim the review was free.
+       */
+      costUsd?: number | null;
       findingsCount: number;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */

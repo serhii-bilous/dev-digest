@@ -1,1 +1,0 @@
-CREATE INDEX "findings_review_id_idx" ON "findings" USING btree ("review_id");

@@ -1,20 +1,16 @@
-# client/ — CLAUDE.md
-
-`@devdigest/web` — Next.js studio UI. Map only; see `README.md` for the UI
-route map diagram.
-
-## Stack
-Next.js 15 (App Router) · React 19 · TanStack Query · `next-intl` ·
-Tailwind 4 · vitest + jsdom.
+# client (`@devdigest/web`) — agent notes
 
 ## Commands
-```
-pnpm dev          # :3000
+
+```sh
+pnpm dev          # next dev, :3000
+pnpm build
+pnpm typecheck    # tsc --noEmit
 pnpm test         # vitest + jsdom, fetch mocked — no API needed
-pnpm typecheck
 ```
 
 ## Map
+
 - `src/app/<route>/page.tsx` — file-based routing; keep pages thin.
 - `src/app/<route>/_components/<Name>/` — feature logic, each with a colocated `*.test.tsx`.
 - `src/lib/hooks/*.ts` — every API call goes through a hook here.
@@ -22,22 +18,35 @@ pnpm typecheck
 - `src/vendor/ui/` — vendored UI kit (`@devdigest/ui`).
 - `src/vendor/shared/` — mirrors `server/src/vendor/shared` (Zod contracts).
 
-## Read when
-- Adding a page/route or a new API call → `README.md` (UI route map diagram).
-- Changing shared UI primitives → `src/vendor/ui/README.md`.
-- Writing a component test → RTL patterns (`.claude/skills/react-testing-library`).
-- Drafting a change before building it → `specs/`. A gotcha not obvious from
-  the code → `INSIGHTS.md`. Deeper design notes → `docs/`.
-- Finishing a task with a non-obvious lesson → capture it via
-  `.claude/skills/engineering-insights` (or run `/engineering-insights`);
-  treat existing `INSIGHTS.md` entries as high-confidence guidance before
-  starting related work.
+## Conventions
+
+- App Router. Pages (`src/app/**/page.tsx`) stay thin; feature logic lives in
+  colocated `_components/<Name>/` folders, each with its own `*.test.tsx`.
+- All data access goes through a hook in `src/lib/hooks/*`, which calls
+  `src/lib/api.ts`. Components never call `fetch` directly.
+- Server state is TanStack Query. Do not mirror it into `useState`.
+- User-facing strings go through `next-intl` — add them to
+  `messages/<locale>/*.json`, never inline literals in JSX.
+- Types for API payloads come from `@devdigest/shared`. Do not redeclare them.
+- Cross-cutting chrome (nav, breadcrumbs, `g`-then-key shortcuts) lives in
+  `src/components/app-shell`.
 
 ## Gotchas
-- `src/vendor/shared` is **not** auto-synced with the server copy — it's a
-  manually mirrored file set; diff it before assuming a contract matches.
-- `fetch` is globally mocked in tests (`src/test/setup.ts`) — a real network
-  call inside a test means the mock wasn't wired, not that the API is reachable.
 
-## Do-not-touch
-- `src/vendor/ui`, `src/vendor/shared` — vendored/mirrored; edit deliberately and check the other side.
+- API base is `NEXT_PUBLIC_API_BASE` (default `http://localhost:3001`). It is
+  read at build time — changing `.env` needs a dev-server restart.
+- Tests mock `fetch`, so a passing test proves nothing about real API shape. The
+  contract is enforced by `@devdigest/shared`, and the real journey by `../e2e`.
+
+## Do not touch
+
+- `src/vendor/ui` (`@devdigest/ui`) and `src/vendor/shared` — vendored. Change
+  `vendor/shared` only as a deliberate contract change, server side first.
+
+## Read when
+
+- Read `INSIGHTS.md` first for what was already tried here, and run the
+  `engineering-insights` skill at the end of the task to add to it.
+- Read `README.md` for the UI route map and which endpoints each page leans on.
+- Read `../server/README.md` when you need the exact shape of an endpoint.
+- Read `../e2e/README.md` when a change affects a seeded browser flow.
