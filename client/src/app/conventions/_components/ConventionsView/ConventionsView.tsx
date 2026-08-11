@@ -106,11 +106,13 @@ export function ConventionsView() {
           <div style={s.headerActions}>
             <div style={s.prPicker}>
               <span style={s.prPickerLabel}>{t("page.prPicker.label")}</span>
-              <SelectInput
-                value={selectedPr != null ? String(selectedPr) : DEFAULT_BRANCH_VALUE}
-                onChange={(v) => setSelectedPr(parsePrSelection(v))}
-                options={prOptions}
-              />
+              <div style={s.prPickerSelect}>
+                <SelectInput
+                  value={selectedPr != null ? String(selectedPr) : DEFAULT_BRANCH_VALUE}
+                  onChange={(v) => setSelectedPr(parsePrSelection(v))}
+                  options={prOptions}
+                />
+              </div>
             </div>
             {scanned && (
               <>

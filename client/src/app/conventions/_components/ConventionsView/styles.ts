@@ -20,8 +20,12 @@ export const s = {
     gap: 8,
     flexShrink: 0,
   } satisfies CSSProperties,
-  prPicker: { display: "flex", alignItems: "center", gap: 6 } satisfies CSSProperties,
-  prPickerLabel: { fontSize: 13, color: "var(--text-secondary)" } satisfies CSSProperties,
+  prPicker: { display: "flex", alignItems: "center", gap: 6, minWidth: 0 } satisfies CSSProperties,
+  prPickerLabel: { fontSize: 13, color: "var(--text-secondary)", flexShrink: 0 } satisfies CSSProperties,
+  // Hard cap so a long PR title in the option list can't blow out the
+  // header layout — SelectInput's own <select> truncates with an ellipsis
+  // once it's actually constrained to this width.
+  prPickerSelect: { maxWidth: 240, overflow: "hidden" } satisfies CSSProperties,
   errorNote: { fontSize: 13, color: "var(--crit)", marginTop: 8 } satisfies CSSProperties,
   toolbar: {
     display: "flex",
