@@ -10,6 +10,7 @@ import { AppShell } from "../../../../components/app-shell";
 import { useSkills, useUpdateSkill } from "../../../../lib/hooks/skills";
 import { SkillCard } from "../SkillCard";
 import { ImportFileDrawer } from "../ImportFileDrawer";
+import { CreateSkillModal } from "../CreateSkillModal";
 import { filterSkills } from "./helpers";
 import { s } from "./styles";
 
@@ -19,6 +20,7 @@ export function SkillsListView() {
   const { data: skills, isLoading, isError, refetch } = useSkills();
   const update = useUpdateSkill();
   const [importing, setImporting] = React.useState(false);
+  const [creatingFromScratch, setCreatingFromScratch] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
   const list = filterSkills(skills ?? [], search);
@@ -26,6 +28,7 @@ export function SkillsListView() {
   return (
     <AppShell crumb={[{ label: t("page.crumbLab") }, { label: t("page.crumbSkills") }]}>
       {importing && <ImportFileDrawer onClose={() => setImporting(false)} />}
+      {creatingFromScratch && <CreateSkillModal onClose={() => setCreatingFromScratch(false)} />}
       <div style={s.page}>
         <div style={s.header}>
           <div style={s.headerText}>
@@ -49,6 +52,7 @@ export function SkillsListView() {
               </Button>
             }
             items={[
+              { label: t("page.menu.createFromScratch"), icon: "Edit", onClick: () => setCreatingFromScratch(true) },
               { label: t("page.menu.fromFile"), icon: "Upload", onClick: () => setImporting(true) },
               { label: t("page.menu.fromUrl"), icon: "Globe", muted: true, hint: "Soon" },
               { label: t("page.menu.community"), icon: "Search", muted: true, hint: "Soon" },

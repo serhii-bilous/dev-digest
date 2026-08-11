@@ -61,6 +61,9 @@ export const conventionScans = pgTable(
       .references(() => repos.id, { onDelete: 'cascade' }),
     sampleFileCount: integer('sample_file_count').notNull(),
     candidateCount: integer('candidate_count').notNull(),
+    // GitHub-facing PR number the scan targeted (not pull_requests.id) —
+    // null means the scan read the repo's default branch.
+    pullNumber: integer('pull_number'),
     scannedAt: timestamp('scanned_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({ repoScannedIdx: index('convention_scans_repo_scanned_idx').on(t.repoId, t.scannedAt) }),

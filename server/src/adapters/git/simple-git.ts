@@ -129,6 +129,11 @@ export class SimpleGitClient implements GitClient {
   async readFile(repo: RepoRef, path: string): Promise<string> {
     return readFile(join(this.clonePathFor(repo), path), 'utf8');
   }
+
+  /** `git show <ref>:<path>` — reads a blob at a ref without touching the working tree. */
+  async readFileAtRef(repo: RepoRef, ref: string, path: string): Promise<string> {
+    return this.git(repo).show([`${ref}:${path}`]);
+  }
 }
 
 function parseBlamePorcelain(raw: string): BlameLine[] {

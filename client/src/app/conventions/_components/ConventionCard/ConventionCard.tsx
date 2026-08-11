@@ -7,16 +7,19 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Icon } from "@devdigest/ui";
 import type { ConventionCandidate } from "@devdigest/shared";
-import { confidenceColor, evidenceLocation } from "./helpers";
+import { confidenceColor, evidenceGithubUrl, evidenceLocation } from "./helpers";
 import { s } from "./styles";
 
 export function ConventionCard({
   candidate,
   pending,
+  repo,
   onAction,
 }: {
   candidate: ConventionCandidate;
   pending?: boolean;
+  /** When present, the evidence location links to the file on GitHub. */
+  repo?: { owner: string; name: string; default_branch: string };
   onAction: (action: "accept" | "reject") => void;
 }) {
   const t = useTranslations("conventions");
@@ -26,6 +29,14 @@ export function ConventionCard({
     candidate.evidence_line_start,
     candidate.evidence_line_end,
   );
+  const githubUrl = repo
+    ? evidenceGithubUrl(
+        repo,
+        candidate.evidence_path,
+        candidate.evidence_line_start,
+        candidate.evidence_line_end,
+      )
+    : null;
 
   const copy = () => {
     void navigator.clipboard?.writeText(candidate.evidence_snippet);
@@ -66,7 +77,13 @@ export function ConventionCard({
 
       <div style={s.evidence}>
         <div style={s.evidenceHeader}>
-          <span style={s.evidencePath}>{location}</span>
+          {githubUrl ? (
+            <a href={githubUrl} target="_blank" rel="noopener noreferrer" style={s.evidencePath}>
+              {location}
+            </a>
+          ) : (
+            <span style={s.evidencePath}>{location}</span>
+          )}
           <button
             type="button"
             title={t("card.copyEvidence")}

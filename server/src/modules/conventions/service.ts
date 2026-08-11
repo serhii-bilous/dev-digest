@@ -56,19 +56,34 @@ export class ConventionsService {
     return row ? toConventionDto(row) : undefined;
   }
 
-  /** Run (or re-run) a scan: sample files + configs, extract via LLM, verify evidence, persist. */
-  async extract(workspaceId: string, repoId: string): Promise<ConventionsListResult> {
+  /**
+   * Run (or re-run) a scan: sample files + configs, extract via LLM, verify
+   * evidence, persist. When `pullNumber` is given, samples are read from that
+   * PR's head commit instead of whatever the local clone's default branch
+   * currently has checked out — via `fetchPullHead` + `readFileAtRef`, which
+   * reads git blobs directly without touching the shared clone's working
+   * tree (safe alongside other repo-intel/review work on the same clone).
+   */
+  async extract(workspaceId: string, repoId: string, pullNumber?: number): Promise<ConventionsListResult> {
     const repoRow = await this.reposRepo.getById(workspaceId, repoId);
     if (!repoRow) throw new NotFoundError('Repo not found');
     const ref: RepoRef = { owner: repoRow.owner, name: repoRow.name };
 
-    const sampledContent = await this.sampleFiles(repoId, ref);
+    let gitRef: string | null = null;
+    if (pullNumber !== undefined) {
+      const pull = await this.repo.getPrByNumber(workspaceId, repoId, pullNumber);
+      if (!pull) throw new NotFoundError('Pull request not found');
+      await this.container.git.fetchPullHead(ref, pullNumber);
+      gitRef = pull.headSha;
+    }
+
+    const sampledContent = await this.sampleFiles(repoId, ref, gitRef);
     const sampleFileCount = sampledContent.size;
 
     if (sampleFileCount === 0) {
       // Nothing to analyze (repo not cloned/indexed yet) — record an empty
       // scan instead of calling the model over nothing.
-      await this.repo.recordScan(workspaceId, repoId, 0, 0);
+      await this.repo.recordScan(workspaceId, repoId, 0, 0, pullNumber ?? null);
       return this.list(workspaceId, repoId);
     }
 
@@ -112,17 +127,28 @@ export class ConventionsService {
     }));
 
     await this.repo.replaceUnaccepted(workspaceId, repoId, inserts);
-    await this.repo.recordScan(workspaceId, repoId, sampleFileCount, kept.length);
+    await this.repo.recordScan(workspaceId, repoId, sampleFileCount, kept.length, pullNumber ?? null);
 
     return this.list(workspaceId, repoId);
   }
 
-  /** Config files (probed directly — repoIntel deliberately excludes them) + top-ranked source files. */
-  private async sampleFiles(repoId: string, ref: RepoRef): Promise<Map<string, string>> {
+  /**
+   * Config files (probed directly — repoIntel deliberately excludes them) +
+   * top-ranked source files. `gitRef` (a PR head sha), when given, reads
+   * every sample at that ref instead of the clone's checked-out branch — the
+   * ranked path *list* still comes from the repo-intel index (built off the
+   * default branch), which is a reasonable approximation: the set of
+   * high-signal files rarely differs much on a feature branch.
+   */
+  private async sampleFiles(
+    repoId: string,
+    ref: RepoRef,
+    gitRef: string | null,
+  ): Promise<Map<string, string>> {
     const out = new Map<string, string>();
 
     for (const path of CONFIG_FILE_CANDIDATES) {
-      const content = await this.readFileSoft(ref, path);
+      const content = await this.readFileSoft(ref, path, gitRef);
       if (content) out.set(path, content);
     }
 
@@ -131,7 +157,7 @@ export class ConventionsService {
       SAMPLE_FILE_COUNT,
     );
     for (const path of rankedPaths) {
-      const content = await this.readFileSoft(ref, path);
+      const content = await this.readFileSoft(ref, path, gitRef);
       if (content) out.set(path, content);
     }
 
@@ -144,9 +170,15 @@ export class ConventionsService {
    * implementations resolves to `''` rather than rejecting) is treated the
    * same as "not found": it carries no evidence either way.
    */
-  private async readFileSoft(ref: RepoRef, path: string): Promise<string | null> {
+  private async readFileSoft(
+    ref: RepoRef,
+    path: string,
+    gitRef: string | null,
+  ): Promise<string | null> {
     try {
-      const content = await this.container.git.readFile(ref, path);
+      const content = gitRef
+        ? await this.container.git.readFileAtRef(ref, gitRef, path)
+        : await this.container.git.readFile(ref, path);
       return content.trim().length > 0 ? content : null;
     } catch {
       return null;

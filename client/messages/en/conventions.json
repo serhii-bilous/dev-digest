@@ -5,7 +5,13 @@
     "headingPrefix": "Conventions in ",
     "repoFallback": "repo",
     "sampleSummary": "Detected from {count, plural, one {# sample file} other {# sample files}} · last scan {when}",
+    "sampleSummaryPr": "Detected from {count, plural, one {# sample file} other {# sample files}} in PR #{pr} · last scan {when}",
     "neverScanned": "never",
+    "prPicker": {
+      "label": "Scan:",
+      "defaultBranch": "Default branch",
+      "prOption": "#{number} {title}"
+    },
     "runExtraction": "Run extraction",
     "rescan": "Re-scan",
     "scanning": "Scanning…",

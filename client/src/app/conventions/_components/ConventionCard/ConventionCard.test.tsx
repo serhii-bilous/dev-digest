@@ -51,4 +51,27 @@ describe("ConventionCard (smoke, both themes)", () => {
     fireEvent.click(screen.getByText("Reject"));
     expect(onAction).toHaveBeenCalledWith("reject");
   });
+
+  it("renders the evidence location as plain text when no repo is given", () => {
+    renderWithIntl(<ConventionCard candidate={CANDIDATE} onAction={() => {}} />);
+    const location = screen.getByText("src/api/users.ts:23-24");
+    expect(location.tagName).toBe("SPAN");
+  });
+
+  it("links the evidence location to the file on GitHub when a repo is given", () => {
+    renderWithIntl(
+      <ConventionCard
+        candidate={CANDIDATE}
+        repo={{ owner: "acme", name: "widgets", default_branch: "main" }}
+        onAction={() => {}}
+      />,
+    );
+    const link = screen.getByText("src/api/users.ts:23-24");
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute(
+      "href",
+      "https://github.com/acme/widgets/blob/main/src/api/users.ts#L23-L24",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+  });
 });

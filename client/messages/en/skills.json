@@ -15,6 +15,7 @@
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
+      "createFromScratch": "Create from scratch",
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
       "community": "Search community skills…"
@@ -52,6 +53,17 @@
     },
     "importFailed": "Import failed",
     "cancel": "Cancel"
+  },
+  "create": {
+    "title": "Create a skill",
+    "subtitle": "Name it, say when it applies, and write the rule",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Use when …",
+    "descriptionHint": "This is the skill's interface — write it directly, e.g. \"Use when reviewing tests for uncovered branches.\"",
+    "typeLabel": "Type",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…"
   },
   "file": {
     "nameLabel": "Skill name",

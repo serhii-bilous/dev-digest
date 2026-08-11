@@ -11,3 +11,20 @@ export function confidenceColor(value: number): string {
 export function evidenceLocation(path: string, start: number, end: number): string {
   return start === end ? `${path}:${start}` : `${path}:${start}-${end}`;
 }
+
+/**
+ * GitHub "blob" deep link for a piece of evidence, anchored to the exact
+ * lines the extractor verified — e.g.
+ * `https://github.com/acme/widgets/blob/main/src/api/users.ts#L23-L31`.
+ * Candidates are sampled off the repo's default branch, so that's what the
+ * link points at (not a specific commit SHA).
+ */
+export function evidenceGithubUrl(
+  repo: { owner: string; name: string; default_branch: string },
+  path: string,
+  start: number,
+  end: number,
+): string {
+  const lines = start === end ? `L${start}` : `L${start}-L${end}`;
+  return `https://github.com/${repo.owner}/${repo.name}/blob/${repo.default_branch}/${path}#${lines}`;
+}

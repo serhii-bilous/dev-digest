@@ -14,7 +14,14 @@ export const s = {
   h1: { fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em" } satisfies CSSProperties,
   repoName: { fontFamily: "var(--font-mono, monospace)" } satisfies CSSProperties,
   subtitle: { fontSize: 14, color: "var(--text-secondary)", marginTop: 4 } satisfies CSSProperties,
-  headerActions: { display: "flex", gap: 8, flexShrink: 0 } satisfies CSSProperties,
+  headerActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  prPicker: { display: "flex", alignItems: "center", gap: 6 } satisfies CSSProperties,
+  prPickerLabel: { fontSize: 13, color: "var(--text-secondary)" } satisfies CSSProperties,
   errorNote: { fontSize: 13, color: "var(--crit)", marginTop: 8 } satisfies CSSProperties,
   toolbar: {
     display: "flex",

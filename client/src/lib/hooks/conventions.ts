@@ -18,11 +18,18 @@ export function useConventions(repoId: string | null | undefined) {
   });
 }
 
-/** Runs (or re-runs) a scan. Used for both "Run extraction" and "Re-scan". */
+/**
+ * Runs (or re-runs) a scan. Used for both "Run extraction" and "Re-scan".
+ * `pullNumber` scans that PR's head commit instead of the repo's default
+ * branch; omit it (or pass `undefined`) to scan the default branch.
+ */
 export function useExtractConventions(repoId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<ConventionsResult>(`/repos/${repoId}/conventions/extract`),
+    mutationFn: (pullNumber?: number) =>
+      api.post<ConventionsResult>(`/repos/${repoId}/conventions/extract`, {
+        pull_number: pullNumber,
+      }),
     onSuccess: (data) => qc.setQueryData(["conventions", repoId], data),
   });
 }

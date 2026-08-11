@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
-import { NotFoundError } from '../../platform/errors.js';
+import { NotFoundError, ValidationError } from '../../platform/errors.js';
 import { ConventionsService } from './service.js';
 
 /**
@@ -21,6 +21,11 @@ const UpdateConventionBody = z.object({
   rule: z.string().min(1).optional(),
 });
 
+/** Omitted/undefined `pull_number` scans the repo's default branch. */
+const ExtractConventionsBody = z.object({
+  pull_number: z.number().int().positive().optional(),
+});
+
 export default async function conventionsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const service = new ConventionsService(app.container);
@@ -35,7 +40,13 @@ export default async function conventionsRoutes(appBase: FastifyInstance) {
     { schema: { params: IdParams } },
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
-      return service.extract(workspaceId, req.params.id);
+      // Not validated via `schema.body` — a bodyless POST (no PR selected,
+      // matching every pre-existing caller) must stay valid, and zod's
+      // `z.object` rejects `undefined` outright rather than treating it as
+      // "no fields given".
+      const parsed = ExtractConventionsBody.safeParse(req.body ?? {});
+      if (!parsed.success) throw new ValidationError('Invalid request body', parsed.error.issues);
+      return service.extract(workspaceId, req.params.id, parsed.data.pull_number);
     },
   );
 

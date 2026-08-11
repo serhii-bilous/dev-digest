@@ -67,15 +67,32 @@ d('conventions module (Testcontainers pg)', () => {
     return repo!;
   }
 
-  function appWith(structured: unknown) {
+  function appWith(structured: unknown, git = new MockGitClient({ files: { 'tsconfig.json': TSCONFIG_CONTENT } })) {
     return buildApp({
       config: config(),
       db: pg.handle.db,
       overrides: {
-        git: new MockGitClient({ files: { 'tsconfig.json': TSCONFIG_CONTENT } }),
+        git,
         llm: { openai: new MockLLMProvider('openai', { structuredBySchema: { ConventionExtraction: structured } }) },
       },
     });
+  }
+
+  async function setupPr(repoId: string, number: number, headSha: string) {
+    const [pr] = await pg.handle.db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId,
+        number,
+        title: `PR #${number}`,
+        author: 'octocat',
+        branch: `feat/pr-${number}`,
+        base: 'main',
+        headSha,
+      })
+      .returning();
+    return pr!;
   }
 
   it('GET before any scan reports scanned_at: null and an empty list', async () => {
@@ -84,7 +101,10 @@ d('conventions module (Testcontainers pg)', () => {
 
     const res = await app.inject({ method: 'GET', url: `/repos/${repo.id}/conventions` });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ candidates: [], scan: { repo_id: repo.id, sample_file_count: 0, candidate_count: 0, scanned_at: null } });
+    expect(res.json()).toEqual({
+      candidates: [],
+      scan: { repo_id: repo.id, sample_file_count: 0, candidate_count: 0, scanned_at: null, pull_number: null },
+    });
     await app.close();
   });
 
@@ -222,6 +242,63 @@ d('conventions module (Testcontainers pg)', () => {
     expect(body.candidates[0].accepted).toBe(true);
     await app.close();
     await app2.close();
+  });
+
+  it('extract with pull_number reads samples from the PR head, not the default branch', async () => {
+    const headSha = 'pr-head-sha-1';
+    const git = new MockGitClient({
+      files: { 'tsconfig.json': TSCONFIG_CONTENT },
+      filesAtRef: {
+        [headSha]: {
+          'tsconfig.json': ['{', '  "compilerOptions": {', '    "noImplicitAny": true', '  }', '}', ''].join('\n'),
+        },
+      },
+    });
+    const prFixture = {
+      candidates: [
+        {
+          category: 'structure',
+          rule: 'noImplicitAny is enabled on this branch.',
+          evidence_path: 'tsconfig.json',
+          evidence_line_start: 3,
+          evidence_line_end: 3,
+          confidence: 0.8,
+        },
+      ],
+    };
+    const app = await appWith(prFixture, git);
+    const repo = await setupRepo();
+    await setupPr(repo.id, 482, headSha);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/repos/${repo.id}/conventions/extract`,
+      payload: { pull_number: 482 },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+
+    expect(git.fetchedPullHeads).toContainEqual({ repo: { owner: 'acme', name: repo.name }, n: 482 });
+    expect(body.scan.pull_number).toBe(482);
+    expect(body.candidates).toHaveLength(1);
+    expect(body.candidates[0]).toMatchObject({
+      rule: 'noImplicitAny is enabled on this branch.',
+      evidence_snippet: '    "noImplicitAny": true',
+    });
+    await app.close();
+  });
+
+  it('extract 404s for an unknown pull_number', async () => {
+    const app = await appWith(EXTRACTION_FIXTURE);
+    const repo = await setupRepo();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/repos/${repo.id}/conventions/extract`,
+      payload: { pull_number: 9999 },
+    });
+    expect(res.statusCode).toBe(404);
+    await app.close();
   });
 
   it('extract 404s for an unknown repo', async () => {

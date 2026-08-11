@@ -29,6 +29,14 @@ vi.mock("../ImportFileDrawer", () => ({
     </div>
   ),
 }));
+vi.mock("../CreateSkillModal", () => ({
+  CreateSkillModal: ({ onClose }: { onClose: () => void }) => (
+    <div>
+      create-modal-mock
+      <button onClick={onClose}>close-create-modal</button>
+    </div>
+  ),
+}));
 
 import { SkillsListView } from "./SkillsListView";
 
@@ -89,6 +97,14 @@ describe("SkillsListView", () => {
     expect(screen.getByText("No skills yet")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Import from file"));
     expect(screen.getByText("drawer-mock")).toBeInTheDocument();
+  });
+
+  it("opens the create-from-scratch modal from the Add Skill dropdown", () => {
+    skillsState = { data: [], isLoading: false, isError: false };
+    renderWithIntl();
+    fireEvent.click(screen.getByText("Add Skill"));
+    fireEvent.click(screen.getByText("Create from scratch"));
+    expect(screen.getByText("create-modal-mock")).toBeInTheDocument();
   });
 
   it("renders a card per skill and navigates on click", () => {

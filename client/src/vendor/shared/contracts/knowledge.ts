@@ -189,6 +189,8 @@ export const ConventionScan = z.object({
   sample_file_count: z.number().int(),
   candidate_count: z.number().int(),
   scanned_at: z.string().nullable(),
+  // GitHub-facing PR number the scan targeted; null = the repo's default branch.
+  pull_number: z.number().int().nullable(),
 });
 export type ConventionScan = z.infer<typeof ConventionScan>;
 

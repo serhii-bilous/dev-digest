@@ -224,6 +224,14 @@ export interface GitClient {
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
   readFile(repo: RepoRef, path: string): Promise<string>;
+  /**
+   * Read a file's content at a specific ref (branch, sha, or a ref fetched via
+   * `fetchPullHead`) via git plumbing — does NOT check out or mutate the
+   * shared clone's working tree, so it's safe to call while other work reads
+   * `readFile`/`diff` against the default branch. `ref` must already be
+   * fetched locally (e.g. via `fetchPullHead` for a PR head).
+   */
+  readFileAtRef(repo: RepoRef, ref: string, path: string): Promise<string>;
   clonePathFor(repo: RepoRef): string;
 }
 

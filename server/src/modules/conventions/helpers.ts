@@ -23,5 +23,6 @@ export function toScanDto(repoId: string, row: ConventionScanRow | undefined): C
     sample_file_count: row?.sampleFileCount ?? 0,
     candidate_count: row?.candidateCount ?? 0,
     scanned_at: row?.scannedAt.toISOString() ?? null,
+    pull_number: row?.pullNumber ?? null,
   };
 }

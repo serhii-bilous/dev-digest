@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { ConventionCandidate } from "@devdigest/shared";
+import type { ConventionCandidate, PrMeta } from "@devdigest/shared";
 import messages from "../../../../../messages/en/conventions.json";
 
 const extractMutate = vi.fn();
@@ -10,8 +10,14 @@ const refetch = vi.fn();
 
 let activeRepoState: { repoId: string | null; activeRepo: { full_name: string } | null; reposLoaded: boolean };
 let staleRepoState = false;
+let pullsState: PrMeta[] = [];
 let conventionsState: {
-  data: { candidates: ConventionCandidate[]; scan: { sample_file_count: number; scanned_at: string | null } } | undefined;
+  data:
+    | {
+        candidates: ConventionCandidate[];
+        scan: { sample_file_count: number; scanned_at: string | null; pull_number: number | null };
+      }
+    | undefined;
   isLoading: boolean;
   isError: boolean;
   error: unknown;
@@ -20,6 +26,9 @@ let conventionsState: {
 vi.mock("@/lib/repo-context", () => ({
   useActiveRepo: () => activeRepoState,
   useRepoNotFound: () => staleRepoState,
+}));
+vi.mock("@/lib/hooks", () => ({
+  usePulls: () => ({ data: pullsState }),
 }));
 vi.mock("@/lib/hooks/conventions", () => ({
   useConventions: () => ({ ...conventionsState, refetch }),
@@ -42,6 +51,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   staleRepoState = false;
+  pullsState = [];
 });
 
 const CANDIDATE: ConventionCandidate = {
@@ -54,6 +64,19 @@ const CANDIDATE: ConventionCandidate = {
   evidence_snippet: "const user = await db.users.find(id);",
   confidence: 0.91,
   accepted: true,
+};
+
+const PR_482: PrMeta = {
+  number: 482,
+  title: "Add rate limiting",
+  author: "marisa.koch",
+  branch: "feat/rate-limit",
+  base: "main",
+  head_sha: "a1b2c3d4",
+  additions: 10,
+  deletions: 2,
+  files_count: 2,
+  status: "needs_review",
 };
 
 function renderWithIntl() {
@@ -94,7 +117,7 @@ describe("ConventionsView", () => {
   it("shows the empty state before any scan and runs extraction from its CTA", () => {
     activeRepoState = { repoId: "r1", activeRepo: { full_name: "acme/payments-api" }, reposLoaded: true };
     conventionsState = {
-      data: { candidates: [], scan: { sample_file_count: 0, scanned_at: null } },
+      data: { candidates: [], scan: { sample_file_count: 0, scanned_at: null, pull_number: null } },
       isLoading: false,
       isError: false,
       error: null,
@@ -110,7 +133,7 @@ describe("ConventionsView", () => {
     conventionsState = {
       data: {
         candidates: [CANDIDATE],
-        scan: { sample_file_count: 12, scanned_at: new Date().toISOString() },
+        scan: { sample_file_count: 12, scanned_at: new Date().toISOString(), pull_number: null },
       },
       isLoading: false,
       isError: false,
@@ -129,7 +152,10 @@ describe("ConventionsView", () => {
   it("disables Create skill and shows the no-candidates note when a scan finds nothing", () => {
     activeRepoState = { repoId: "r1", activeRepo: { full_name: "acme/payments-api" }, reposLoaded: true };
     conventionsState = {
-      data: { candidates: [], scan: { sample_file_count: 12, scanned_at: new Date().toISOString() } },
+      data: {
+        candidates: [],
+        scan: { sample_file_count: 12, scanned_at: new Date().toISOString(), pull_number: null },
+      },
       isLoading: false,
       isError: false,
       error: null,
@@ -137,5 +163,58 @@ describe("ConventionsView", () => {
     renderWithIntl();
     expect(screen.getByText(/This scan found no candidates/)).toBeInTheDocument();
     expect(screen.getByText("Create skill").closest("button")).toBeDisabled();
+  });
+
+  it("defaults the PR picker to the default branch and runs extraction with no pull_number", () => {
+    activeRepoState = { repoId: "r1", activeRepo: { full_name: "acme/payments-api" }, reposLoaded: true };
+    pullsState = [PR_482];
+    conventionsState = {
+      data: { candidates: [], scan: { sample_file_count: 0, scanned_at: null, pull_number: null } },
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+    renderWithIntl();
+    expect(screen.getByDisplayValue("Default branch")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Run extraction"));
+    expect(extractMutate).toHaveBeenCalledWith(undefined);
+  });
+
+  it("runs extraction with the selected PR's number", () => {
+    activeRepoState = { repoId: "r1", activeRepo: { full_name: "acme/payments-api" }, reposLoaded: true };
+    pullsState = [PR_482];
+    conventionsState = {
+      data: {
+        candidates: [CANDIDATE],
+        scan: { sample_file_count: 5, scanned_at: new Date().toISOString(), pull_number: null },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+    renderWithIntl();
+
+    fireEvent.change(screen.getByDisplayValue("Default branch"), {
+      target: { value: "482" },
+    });
+    fireEvent.click(screen.getByText("Re-scan"));
+    expect(extractMutate).toHaveBeenCalledWith(482);
+  });
+
+  it("shows the PR-scoped sample summary when the latest scan targeted a PR", () => {
+    activeRepoState = { repoId: "r1", activeRepo: { full_name: "acme/payments-api" }, reposLoaded: true };
+    pullsState = [PR_482];
+    conventionsState = {
+      data: {
+        candidates: [CANDIDATE],
+        scan: { sample_file_count: 5, scanned_at: new Date().toISOString(), pull_number: 482 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+    renderWithIntl();
+    expect(screen.getByText(/in PR #482/)).toBeInTheDocument();
   });
 });

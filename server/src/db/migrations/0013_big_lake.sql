@@ -1,0 +1,1 @@
+ALTER TABLE "convention_scans" ADD COLUMN "pull_number" integer;

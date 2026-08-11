@@ -7,7 +7,7 @@ import * as t from '../../db/schema.js';
  * Workspace(+repo)-scoped throughout, same shape as `SkillsRepository`.
  */
 
-import type { ConventionRow, ConventionScanRow } from '../../db/rows.js';
+import type { ConventionRow, ConventionScanRow, PullRow } from '../../db/rows.js';
 export type { ConventionRow, ConventionScanRow };
 
 export interface InsertConvention {
@@ -103,12 +103,32 @@ export class ConventionsRepository {
     repoId: string,
     sampleFileCount: number,
     candidateCount: number,
+    pullNumber?: number | null,
   ): Promise<ConventionScanRow> {
     const [row] = await this.db
       .insert(t.conventionScans)
-      .values({ workspaceId, repoId, sampleFileCount, candidateCount })
+      .values({ workspaceId, repoId, sampleFileCount, candidateCount, pullNumber: pullNumber ?? null })
       .returning();
     return row!;
+  }
+
+  /** Look up a PR by its GitHub-facing number (not the row's uuid) for PR-scoped scans. */
+  async getPrByNumber(
+    workspaceId: string,
+    repoId: string,
+    number: number,
+  ): Promise<PullRow | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(t.pullRequests)
+      .where(
+        and(
+          eq(t.pullRequests.workspaceId, workspaceId),
+          eq(t.pullRequests.repoId, repoId),
+          eq(t.pullRequests.number, number),
+        ),
+      );
+    return row;
   }
 
   async updateOne(
