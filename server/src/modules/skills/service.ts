@@ -22,6 +22,9 @@ export interface CreateSkillInput {
   type: SkillType;
   body: string;
   enabled?: boolean;
+  /** Provenance — defaults to 'manual' (see `create()`). */
+  source?: SkillSource;
+  evidenceFiles?: string[];
 }
 
 export interface UpdateSkillInput {
@@ -74,9 +77,10 @@ export class SkillsService {
       name: input.name,
       description: input.description,
       type: input.type,
-      source: 'manual',
+      source: input.source ?? 'manual',
       body: input.body,
       enabled: input.enabled,
+      evidenceFiles: input.evidenceFiles,
     });
     return toSkillDto(row);
   }

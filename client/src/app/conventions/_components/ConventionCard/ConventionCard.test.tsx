@@ -1,0 +1,54 @@
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import type { ConventionCandidate } from "@devdigest/shared";
+import messages from "../../../../../messages/en/conventions.json";
+import { ConventionCard } from "./ConventionCard";
+
+afterEach(cleanup);
+
+const CANDIDATE: ConventionCandidate = {
+  id: "c1",
+  category: "error-handling",
+  rule: "Always use async/await instead of .then() chains.",
+  evidence_path: "src/api/users.ts",
+  evidence_line_start: 23,
+  evidence_line_end: 24,
+  evidence_snippet: "const user = await db.users.find(id);\nconst posts = await db.posts.findMany({ userId });",
+  confidence: 0.91,
+  accepted: true,
+};
+
+function renderWithIntl(ui: React.ReactElement) {
+  return render(
+    <NextIntlClientProvider locale="en" messages={{ conventions: messages }}>
+      {ui}
+    </NextIntlClientProvider>,
+  );
+}
+
+describe("ConventionCard (smoke, both themes)", () => {
+  (["dark", "light"] as const).forEach((theme) => {
+    it(`renders rule + evidence location + confidence in ${theme}`, () => {
+      renderWithIntl(
+        <div data-theme={theme}>
+          <ConventionCard candidate={CANDIDATE} onAction={() => {}} />
+        </div>,
+      );
+      expect(
+        screen.getByText("Always use async/await instead of .then() chains."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("src/api/users.ts:23-24")).toBeInTheDocument();
+      expect(screen.getByText("91%")).toBeInTheDocument();
+    });
+  });
+
+  it("fires accept/reject actions", () => {
+    const onAction = vi.fn();
+    renderWithIntl(<ConventionCard candidate={CANDIDATE} onAction={onAction} />);
+    fireEvent.click(screen.getByText("Accepted"));
+    expect(onAction).toHaveBeenCalledWith("accept");
+    fireEvent.click(screen.getByText("Reject"));
+    expect(onAction).toHaveBeenCalledWith("reject");
+  });
+});

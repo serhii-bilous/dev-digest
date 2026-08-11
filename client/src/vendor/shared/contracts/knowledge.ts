@@ -159,15 +159,38 @@ export const SkillVersion = z.object({
 export type SkillVersion = z.infer<typeof SkillVersion>;
 
 // ---- Conventions ----
+export const ConventionCategory = z.enum([
+  'naming',
+  'error-handling',
+  'structure',
+  'testing',
+  'api-design',
+  'other',
+]);
+export type ConventionCategory = z.infer<typeof ConventionCategory>;
+
 export const ConventionCandidate = z.object({
   id: z.string(),
+  category: ConventionCategory,
   rule: z.string(),
   evidence_path: z.string(),
+  evidence_line_start: z.number().int(),
+  evidence_line_end: z.number().int(),
   evidence_snippet: z.string(),
   confidence: z.number().min(0).max(1),
   accepted: z.boolean(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+// Per-repo scan metadata (sample size + when) for the Conventions page header.
+// `scanned_at: null` means the repo has never been scanned yet.
+export const ConventionScan = z.object({
+  repo_id: z.string(),
+  sample_file_count: z.number().int(),
+  candidate_count: z.number().int(),
+  scanned_at: z.string().nullable(),
+});
+export type ConventionScan = z.infer<typeof ConventionScan>;
 
 // ---- Agents ----
 export const Provider = z.enum(['openai', 'anthropic', 'openrouter']);

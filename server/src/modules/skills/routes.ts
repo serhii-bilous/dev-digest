@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { SkillType } from '@devdigest/shared';
+import { SkillSource, SkillType } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
@@ -35,6 +35,11 @@ const CreateSkillBody = z.object({
   type: SkillType,
   body: z.string().min(1),
   enabled: z.boolean().optional(),
+  // Provenance for skills assembled from another feature (e.g. the
+  // Conventions Extractor) — defaults to 'manual' when omitted, unchanged
+  // for every existing caller.
+  source: SkillSource.optional(),
+  evidence_files: z.array(z.string()).optional(),
 });
 
 const UpdateSkillBody = z.object({
@@ -68,7 +73,16 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
 
   app.post('/skills', { schema: { body: CreateSkillBody } }, async (req, reply) => {
     const { workspaceId } = await getContext(app.container, req);
-    const skill = await service.create(workspaceId, req.body);
+    const body = req.body;
+    const skill = await service.create(workspaceId, {
+      name: body.name,
+      description: body.description,
+      type: body.type,
+      body: body.body,
+      ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
+      ...(body.source !== undefined ? { source: body.source } : {}),
+      ...(body.evidence_files !== undefined ? { evidenceFiles: body.evidence_files } : {}),
+    });
     reply.status(201);
     return skill;
   });

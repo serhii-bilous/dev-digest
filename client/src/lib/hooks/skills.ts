@@ -3,7 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Skill, SkillStats, SkillType, SkillVersion } from "@devdigest/shared";
+import type { Skill, SkillSource, SkillStats, SkillType, SkillVersion } from "@devdigest/shared";
 
 export function useSkills() {
   return useQuery({
@@ -26,6 +26,9 @@ export interface CreateSkillInput {
   type: SkillType;
   body: string;
   enabled?: boolean;
+  /** Provenance for skills assembled from another feature (e.g. Conventions Extractor). */
+  source?: SkillSource;
+  evidence_files?: string[];
 }
 
 export function useCreateSkill() {
