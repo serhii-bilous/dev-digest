@@ -6,6 +6,7 @@ import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
 import { s } from "./styles";
+import { buildFindingsByRun } from "./helpers";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit, Severity } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
 
@@ -80,11 +81,7 @@ export function FindingsTab({
   // this joins each run to its own findings (with severity), already on this
   // page via `runs`, keyed by run_id. Mirrors how the same page joins cost to
   // a run elsewhere: both are already in memory, joined client-side.
-  const findingsByRun = React.useMemo(() => {
-    const m = new Map<string, FindingRecord[]>();
-    for (const r of runs) if (r.run_id) m.set(r.run_id, r.findings);
-    return m;
-  }, [runs]);
+  const findingsByRun = React.useMemo(() => buildFindingsByRun(runs), [runs]);
 
   return (
     <section>
