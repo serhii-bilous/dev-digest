@@ -123,5 +123,17 @@
       "loading": "Loading findings…",
       "empty": "No findings in this run"
     }
+  },
+  "intent": {
+    "sectionLabel": "Intent",
+    "empty": {
+      "body": "No intent has been derived for this PR yet — generate a short summary of what it's trying to do and its scope.",
+      "cta": "Derive intent"
+    },
+    "deriving": "Deriving…",
+    "recompute": "Recompute",
+    "inScope": "In scope",
+    "outOfScope": "Out of scope",
+    "computedAt": "Derived {time}"
   }
 }

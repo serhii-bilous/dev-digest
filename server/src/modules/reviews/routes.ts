@@ -13,6 +13,8 @@ import { ReviewService } from './service.js';
  *   GET    /runs/:id/events                            → SSE stream of RunEvent (replay-first)
  *   GET    /runs/:id/trace                             → the single-document RunTrace
  *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
+ *   POST   /pulls/:id/intent                           → derive/recompute PR intent
+ *   GET    /pulls/:id/intent                           → stored intent, or null
  *   POST   /findings/:id/(accept|dismiss)              → finding actions
  */
 const FINDING_ACTIONS = ['accept', 'dismiss'] as const;
@@ -129,6 +131,22 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
   app.get('/pulls/:id/reviews', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(container, req);
     return service.reviewsForPull(workspaceId, req.params.id);
+  });
+
+  // ---- Compute (or recompute) a PR's intent — synchronous, single cheap LLM call
+  app.post(
+    '/pulls/:id/intent',
+    { schema: { params: IdParams }, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      return service.computeIntent(workspaceId, req.params.id, req.log);
+    },
+  );
+
+  // ---- Fetch the currently stored intent (null if never computed) ----------
+  app.get('/pulls/:id/intent', { schema: { params: IdParams } }, async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    return service.getIntent(workspaceId, req.params.id);
   });
 
   // ---- Delete a whole review run (one agent's pass) + its findings --------

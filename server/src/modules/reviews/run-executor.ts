@@ -183,6 +183,10 @@ export class ReviewRunExecutor {
       const repoMap = repoIntelOn ? await this.buildRepoMapDigest(pull.repoId, runLog) : undefined;
       const rankNote = repoIntelOn ? await this.buildRankNote(pull.repoId, diff, runLog) : '';
 
+      // Intent — the PR's stated summary/in-scope/out-of-scope, when it has
+      // been computed. Best-effort: never let this break the run.
+      const intentDigest = await this.buildIntentDigest(pull.id, runLog);
+
       // Skills — the agent's linked + enabled skill bodies (Agent Editor's
       // Skills tab), independent of repo-intel. A skill only lands here when
       // it's BOTH linked to this agent AND globally enabled.
@@ -213,6 +217,9 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Stated PR intent/scope digest, when computed. Same omit-when-empty
+        // contract as the other digests.
+        ...(intentDigest ? { intent: intentDigest } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -386,6 +393,29 @@ export class ReviewRunExecutor {
     const skills = await resolveEnabledSkills(this.agents, agentId);
     if (skills.length > 0) runLog.info(`skills: ${skills.length} enabled skill(s) attached`);
     return { bodies: skills.map((s) => s.body), ids: skills.map((s) => s.id) };
+  }
+
+  /**
+   * Build a plain-text digest of the PR's stated intent (summary + in/out of
+   * scope) for the prompt's intent slot. Returns `undefined` when intent
+   * hasn't been computed for this PR yet — that's the normal steady state
+   * for most PRs, not a failure, so unlike the other digest builders this
+   * doesn't log an info line for the "nothing to attach" case.
+   */
+  private async buildIntentDigest(prId: string, runLog: RunLogger): Promise<string | undefined> {
+    const record = await this.repo.getIntent(prId);
+    if (!record) return undefined;
+
+    const inScope = record.in_scope.length > 0 ? record.in_scope.map((s) => `- ${s}`).join('\n') : '(none stated)';
+    const outOfScope =
+      record.out_of_scope.length > 0 ? record.out_of_scope.map((s) => `- ${s}`).join('\n') : '(none stated)';
+
+    const digest = `Summary: ${record.summary}\n\nIn scope:\n${inScope}\n\nOut of scope:\n${outOfScope}`;
+
+    runLog.info(
+      `intent: stated scope attached (${record.in_scope.length} in-scope, ${record.out_of_scope.length} out-of-scope item(s))`,
+    );
+    return digest;
   }
 
   /**

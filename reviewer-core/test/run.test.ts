@@ -135,4 +135,46 @@ describe('reviewPullRequest (engine)', () => {
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
   });
+
+  it('forwards intent into the assembled prompt (## Stated PR intent section)', async () => {
+    const seenMessages: { role: string; content: string }[][] = [];
+    const recorder: LLMProvider = {
+      id: 'openrouter',
+      async completeStructured<T>(req): Promise<StructuredResult<T>> {
+        seenMessages.push(req.messages);
+        return {
+          data: fixture as unknown as T,
+          model: req.model,
+          tokensIn: 0,
+          tokensOut: 0,
+          costUsd: 0,
+          raw: '',
+          attempts: 1,
+        };
+      },
+      async listModels() {
+        return [];
+      },
+      async complete() {
+        throw new Error('not used');
+      },
+      async embed() {
+        return [];
+      },
+    };
+    const diff = await new MockGitClient().diff();
+    await reviewPullRequest({
+      systemPrompt: 's',
+      model: 'm',
+      diff,
+      llm: recorder,
+      intent: 'Only refactor the config loader; do not add new features.',
+    });
+
+    expect(seenMessages.length).toBeGreaterThan(0);
+    const user = seenMessages[0]![1]!.content;
+    expect(user).toContain('## Stated PR intent');
+    expect(user).toContain('<untrusted source="intent">');
+    expect(user).toContain('Only refactor the config loader; do not add new features.');
+  });
 });

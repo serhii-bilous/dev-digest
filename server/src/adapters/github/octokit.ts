@@ -124,7 +124,7 @@ export class OctokitGitHubClient implements GitHubClient {
   }
 
   /** linked issue via regex on PR body (#123 / closes #123). */
-  private async resolveLinkedIssue(repo: RepoRef, body: string): Promise<IssueMeta | undefined> {
+  async resolveLinkedIssue(repo: RepoRef, body: string): Promise<IssueMeta | undefined> {
     const m = body.match(/(?:closes|fixes|resolves)?\s*#(\d+)/i);
     if (!m?.[1]) return undefined;
     try {

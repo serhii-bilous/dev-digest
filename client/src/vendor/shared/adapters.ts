@@ -133,6 +133,8 @@ export interface GitHubClient {
   ): Promise<PrReviewComment>;
   openPullRequest(repo: RepoRef, payload: OpenPrPayload): Promise<{ url: string }>;
   getIssue(repo: RepoRef, n: number): Promise<IssueMeta>;
+  /** Resolve the issue linked from a PR body (`closes #123` / `fixes #123` / bare `#123`), if any. */
+  resolveLinkedIssue(repo: RepoRef, body: string): Promise<IssueMeta | undefined>;
   /** GET /user — for "posting as @user". */
   currentLogin(): Promise<string>;
 }

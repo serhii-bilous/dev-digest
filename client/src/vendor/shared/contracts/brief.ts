@@ -7,9 +7,19 @@ import { z } from 'zod';
 
 // ---- Intent ----
 export const Intent = z.object({
-  intent: z.string(),
-  in_scope: z.array(z.string()),
-  out_of_scope: z.array(z.string()),
+  summary: z
+    .string()
+    .describe(
+      'One-sentence statement of what the PR is trying to do and why.',
+    ),
+  in_scope: z
+    .array(z.string())
+    .describe('Concrete things the PR does.'),
+  out_of_scope: z
+    .array(z.string())
+    .describe(
+      'Things explicitly not covered by the PR even if related.',
+    ),
 });
 export type Intent = z.infer<typeof Intent>;
 

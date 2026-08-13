@@ -85,6 +85,13 @@
       "when": 1786477629032,
       "tag": "0011_strong_boomer",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786651794347,
+      "tag": "0012_ancient_invisible_woman",
+      "breakpoints": true
     }
   ]
 }

@@ -62,9 +62,15 @@ export const prIntent = pgTable('pr_intent', {
   prId: uuid('pr_id')
     .primaryKey()
     .references(() => pullRequests.id, { onDelete: 'cascade' }),
-  intent: text('intent').notNull(),
+  summary: text('summary').notNull(),
   inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  computedAt: timestamp('computed_at', { withTimezone: true }).defaultNow().notNull(),
+  provider: text('provider'),
+  model: text('model'),
+  tokensIn: integer('tokens_in'),
+  tokensOut: integer('tokens_out'),
+  costUsd: doublePrecision('cost_usd'),
 });
 
 export const prBrief = pgTable('pr_brief', {

@@ -21,8 +21,11 @@ export type ReviewRow = typeof t.reviews.$inferSelect;
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
+import type { IntentMeta, IntentRecord } from './repository/pull.repo.js';
 import * as statsRepo from './repository/stats.repo.js';
 import type { AgentFindingRow } from './repository/stats.repo.js';
+
+export type { IntentMeta, IntentRecord };
 
 export class ReviewRepository {
   constructor(private db: Db) {}
@@ -171,11 +174,11 @@ export class ReviewRepository {
 
   // ---- intent -------------------------------------------------------------
 
-  upsertIntent(prId: string, intent: Intent): Promise<void> {
-    return pullRepo.upsertIntent(this.db, prId, intent);
+  upsertIntent(prId: string, intent: Intent, meta: IntentMeta): Promise<void> {
+    return pullRepo.upsertIntent(this.db, prId, intent, meta);
   }
 
-  getIntent(prId: string): Promise<Intent | undefined> {
+  getIntent(prId: string): Promise<IntentRecord | undefined> {
     return pullRepo.getIntent(this.db, prId);
   }
 

@@ -2,9 +2,10 @@ import type { Container } from '../../platform/container.js';
 import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
-import { ReviewRepository } from './repository.js';
+import { ReviewRepository, type IntentRecord } from './repository.js';
 import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
+import { IntentClassifier } from './intent-classifier.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { reviewToDto } from './helpers.js';
 
@@ -29,11 +30,13 @@ export class ReviewService {
   private repo: ReviewRepository;
   private agents: Container['agentsRepo'];
   private executor: ReviewRunExecutor;
+  private intentClassifier: IntentClassifier;
 
   constructor(private container: Container) {
     this.repo = new ReviewRepository(container.db);
     this.agents = container.agentsRepo;
     this.executor = new ReviewRunExecutor(container, this.repo, this.agents);
+    this.intentClassifier = new IntentClassifier(container, this.repo);
   }
 
   // ===========================================================================
@@ -175,5 +178,18 @@ export class ReviewService {
 
   async getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return this.repo.getRunTrace(runId);
+  }
+
+  /** Derive (or recompute) a PR's intent — synchronous, single cheap LLM call. */
+  async computeIntent(workspaceId: string, prId: string, logger?: Logger): Promise<IntentRecord> {
+    return this.intentClassifier.compute(workspaceId, prId, logger);
+  }
+
+  /** Stored intent for a PR, or null if never computed. */
+  async getIntent(workspaceId: string, prId: string): Promise<IntentRecord | null> {
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const record = await this.repo.getIntent(prId);
+    return record ?? null;
   }
 }

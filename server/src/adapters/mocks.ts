@@ -234,6 +234,17 @@ export class MockGitHubClient implements GitHubClient {
     return { number: n, title: `Issue #${n}`, body: 'mock issue', state: 'open' };
   }
 
+  /** Same regex-on-body logic as the real adapter, over this mock's fixtures. */
+  async resolveLinkedIssue(repo: RepoRef, body: string): Promise<IssueMeta | undefined> {
+    const m = body.match(/(?:closes|fixes|resolves)?\s*#(\d+)/i);
+    if (!m?.[1]) return undefined;
+    try {
+      return await this.getIssue(repo, Number(m[1]));
+    } catch {
+      return undefined;
+    }
+  }
+
   async currentLogin(): Promise<string> {
     return this.opts.login ?? 'mock-user';
   }
