@@ -4,14 +4,21 @@ import { NextIntlClientProvider } from "next-intl";
 import type { ReviewRecord, FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 
+const deleteMutate = vi.fn();
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
-  useDeleteReview: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteReview: () => ({ mutate: deleteMutate, isPending: false }),
   useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { ReviewRunAccordion } from "./ReviewRunAccordion";
 
-afterEach(cleanup);
+// jsdom doesn't implement scrollIntoView — the auto-open effect calls it.
+Element.prototype.scrollIntoView = vi.fn();
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function finding(o: Partial<FindingRecord>): FindingRecord {
   return {
@@ -54,10 +61,10 @@ function review(o: Partial<ReviewRecord>): ReviewRecord {
   };
 }
 
-function renderAccordion(r: ReviewRecord) {
+function renderAccordion(r: ReviewRecord, extraProps: Partial<React.ComponentProps<typeof ReviewRunAccordion>> = {}) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <ReviewRunAccordion review={r} prId="pr1" />
+      <ReviewRunAccordion review={r} prId="pr1" {...extraProps} />
     </NextIntlClientProvider>,
   );
 }
@@ -104,5 +111,41 @@ describe("ReviewRunAccordion — header findings", () => {
     // Collapsed accordions render no body — hovering the header doesn't
     // require expanding it first.
     expect(screen.queryByText("summary")).not.toBeInTheDocument();
+  });
+});
+
+describe("ReviewRunAccordion — targetRunId auto-open", () => {
+  it("auto-opens and scrolls into view when targetRunId matches this run's run_id", () => {
+    renderAccordion(review({ run_id: "run1" }), { targetRunId: "run1" });
+    // Body (VerdictBanner summary) only renders while open.
+    expect(screen.getByText("summary")).toBeInTheDocument();
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("stays collapsed when targetRunId does not match this run's run_id", () => {
+    renderAccordion(review({ run_id: "run1" }), { targetRunId: "some-other-run" });
+    expect(screen.queryByText("summary")).not.toBeInTheDocument();
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+  });
+});
+
+describe("ReviewRunAccordion — delete run", () => {
+  it("deletes the run when the user confirms the prompt", () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderAccordion(review({ id: "r1", agent_name: "Security Reviewer" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete this review run" }));
+
+    expect(window.confirm).toHaveBeenCalledWith('Delete this "Security Reviewer" review run and its findings?');
+    expect(deleteMutate).toHaveBeenCalledWith("r1");
+  });
+
+  it("does not delete the run when the user cancels the prompt", () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderAccordion(review({ id: "r1" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete this review run" }));
+
+    expect(deleteMutate).not.toHaveBeenCalled();
   });
 });

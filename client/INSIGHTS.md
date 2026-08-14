@@ -81,6 +81,21 @@ _None yet._
 
 ## Recurring Errors & Fixes
 
+- **2026-08-14** — `fireEvent.dragOver(el, { clientY: N })` never sets
+  `clientY` on the event RTL dispatches: `@testing-library/dom`'s event map
+  types `dragOver` as `DragEvent`, not `MouseEvent`, so the init dict's
+  `clientY` is silently dropped and the handler reads `undefined`. Any
+  before/after-drop-position logic keyed on `e.clientY` (e.g. comparing
+  against `getBoundingClientRect().top + height / 2`) will always take the
+  same branch in tests no matter what `clientY` you pass. Confirmed by
+  logging `e.clientY` in a throwaway handler — `undefined`, `"undefined"`.
+  Workaround: build the event by hand and dispatch it via the low-level
+  `fireEvent(el, event)` overload — `Object.assign(new Event("dragover", {
+  bubbles: true, cancelable: true }), { dataTransfer, clientY: -1 })` —
+  which does propagate `clientY` since it's just an own property on a plain
+  `Event`.
+  `client/src/app/agents/[id]/_components/AgentEditor/_components/SkillsTab/SkillsTab.test.tsx`
+
 - **2026-08-04** — `fireEvent.mouseEnter` on a component whose hover-open
   logic uses `setTimeout` (e.g. an open delay to survive a mouse
   pass-through) needs `vi.useFakeTimers()` **and** the timer advance wrapped
