@@ -76,4 +76,27 @@ describe("SkillsTab (smoke)", () => {
     fireEvent.click(downButtons[0]!); // move s1 (order 0) down past s2
     expect(setSkillsMutate).toHaveBeenCalledWith({ agentId: "ag1", skillIds: ["s2", "s1"] });
   });
+
+  it("filtering to a term that matches nothing shows the empty state instead of the list", () => {
+    renderWithIntl(<SkillsTab agentId="ag1" />);
+    fireEvent.change(screen.getByPlaceholderText("Filter skills…"), { target: { value: "zzz-no-match" } });
+    expect(screen.getByText("No skills match. Create or import one from the Skills page.")).toBeInTheDocument();
+    expect(screen.queryByText("no-then-chains")).not.toBeInTheDocument();
+    expect(screen.queryByText("secret-leakage-gate")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+  });
+
+  it("dragging a skill's handle onto another row's drop zone reorders the linked set", () => {
+    renderWithIntl(<SkillsTab agentId="ag1" />);
+    const handles = screen.getAllByLabelText("Drag to reorder");
+    // The row (which owns onDragOver/onDrop) is the drag handle's parent element.
+    const s2Row = screen.getByText("secret-leakage-gate").parentElement!;
+    const dataTransfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+
+    fireEvent.dragStart(handles[0]!, { dataTransfer }); // pick up s1
+    fireEvent.dragOver(s2Row, { dataTransfer, clientY: 0 }); // hover over s2's row
+    fireEvent.drop(s2Row, { dataTransfer }); // drop onto s2
+
+    expect(setSkillsMutate).toHaveBeenCalledWith({ agentId: "ag1", skillIds: ["s2", "s1"] });
+  });
 });

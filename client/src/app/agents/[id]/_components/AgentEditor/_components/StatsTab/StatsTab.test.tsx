@@ -57,13 +57,18 @@ const STATS: AgentStats = {
   ],
 };
 
+let statsData: AgentStats = STATS;
+
 vi.mock("../../../../../../../lib/hooks/stats", () => ({
-  useAgentStats: () => ({ data: STATS, isLoading: false }),
+  useAgentStats: () => ({ data: statsData, isLoading: false }),
 }));
 
 import { StatsTab } from "./StatsTab";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  statsData = STATS;
+});
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
@@ -86,5 +91,14 @@ describe("StatsTab (smoke)", () => {
   it("renders the accept-rate gauge value", () => {
     renderWithIntl(<StatsTab agentId="ag1" />);
     expect(screen.getByText("50")).toBeInTheDocument();
+  });
+
+  it("shows the empty-state copy for skills, category, and run history when none exist", () => {
+    statsData = { ...STATS, most_used_skills: [], findings_by_category: [], run_history: [] };
+    renderWithIntl(<StatsTab agentId="ag1" />);
+    expect(screen.getByText("No skills were used in this window.")).toBeInTheDocument();
+    expect(screen.getAllByText("No runs yet. Run a review with this agent to see stats here.")).toHaveLength(2);
+    expect(screen.queryByText("secret-leakage-gate")).not.toBeInTheDocument();
+    expect(screen.queryByText("View trace")).not.toBeInTheDocument();
   });
 });

@@ -132,4 +132,14 @@ describe("RunHistory — per-severity findings badges", () => {
     renderRuns([run({ status: "done", findings_count: 0, blockers: 0 })]);
     expect(screen.getByText(/0 finding/)).toBeInTheDocument();
   });
+
+  it("renders severity badges without the hover-card wrapper when the run's findings array is empty", () => {
+    // findingsByRun HAS an entry for this run, but it's an empty array — distinct
+    // from "no entry at all" (which falls back to the plain-text count above).
+    const findingsByRun = new Map<string, FindingRecord[]>([["run-1", []]]);
+    renderRuns([run({ status: "done", findings_count: 0, blockers: 0 })], findingsByRun);
+    expect(screen.getByText("None")).toBeInTheDocument();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 finding/)).not.toBeInTheDocument();
+  });
 });
