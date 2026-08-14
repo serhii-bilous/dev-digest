@@ -6,9 +6,10 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Button, SectionLabel, Skeleton } from "@devdigest/ui";
+import { Button, Icon, SectionLabel, Skeleton } from "@devdigest/ui";
 import { usePrIntent, useComputeIntent } from "../../../../../../../../../lib/hooks/intent";
 import { relativeTime } from "../../../../../helpers";
+import { RiskAreas } from "./RiskAreas";
 import { s } from "./styles";
 
 export function IntentCard({ prId }: { prId: string | null }) {
@@ -69,10 +70,13 @@ export function IntentCard({ prId }: { prId: string | null }) {
         {t("intent.sectionLabel")}
       </SectionLabel>
       <div style={s.box}>
-        <p style={s.summary}>{data.summary}</p>
+        <p style={s.summary}>&ldquo;{data.summary}&rdquo;</p>
         <div style={s.scopeGrid}>
           <div>
-            <div style={s.scopeLabel}>{t("intent.inScope")}</div>
+            <div style={s.scopeLabel}>
+              <Icon.Check size={12} style={{ color: "var(--ok)" }} />
+              {t("intent.inScope")}
+            </div>
             <ul style={s.list}>
               {data.in_scope.map((item, i) => (
                 <li key={`in-${i}`}>{item}</li>
@@ -80,7 +84,10 @@ export function IntentCard({ prId }: { prId: string | null }) {
             </ul>
           </div>
           <div>
-            <div style={s.scopeLabel}>{t("intent.outOfScope")}</div>
+            <div style={s.scopeLabel}>
+              <Icon.X size={12} style={{ color: "var(--crit)" }} />
+              {t("intent.outOfScope")}
+            </div>
             <ul style={s.list}>
               {data.out_of_scope.map((item, i) => (
                 <li key={`out-${i}`}>{item}</li>
@@ -88,6 +95,7 @@ export function IntentCard({ prId }: { prId: string | null }) {
             </ul>
           </div>
         </div>
+        <RiskAreas risks={[]} />
         <div style={s.meta}>{t("intent.computedAt", { time: relativeTime(data.computed_at) })}</div>
       </div>
     </section>

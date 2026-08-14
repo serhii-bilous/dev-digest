@@ -11,7 +11,8 @@ export const s = {
   summary: {
     fontSize: 14,
     lineHeight: 1.55,
-    color: "var(--text-secondary)",
+    color: "var(--text-primary)",
+    fontStyle: "italic",
     margin: 0,
   } satisfies CSSProperties,
   emptyBody: {
@@ -27,6 +28,9 @@ export const s = {
     marginTop: 14,
   } satisfies CSSProperties,
   scopeLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
     fontSize: 11,
     fontWeight: 700,
     letterSpacing: "0.06em",
@@ -50,5 +54,38 @@ export const s = {
     display: "flex",
     flexDirection: "column",
     gap: 8,
+  } satisfies CSSProperties,
+  riskAreas: {
+    marginTop: 18,
+    paddingTop: 16,
+    borderTop: "1px solid var(--border)",
+  } satisfies CSSProperties,
+  riskEmpty: {
+    fontSize: 13,
+    color: "var(--text-muted)",
+    margin: 0,
+  } satisfies CSSProperties,
+  riskChipRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+  } satisfies CSSProperties,
+  riskDetail: {
+    marginTop: 10,
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    background: "var(--bg-surface)",
+    padding: 12,
+  } satisfies CSSProperties,
+  riskExplanation: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "var(--text-secondary)",
+    margin: 0,
+  } satisfies CSSProperties,
+  riskFileRefs: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "var(--text-muted)",
   } satisfies CSSProperties,
 } as const;

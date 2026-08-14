@@ -65,11 +65,12 @@ describe("IntentCard", () => {
     computeState = { isPending: false };
     renderCard();
 
-    expect(screen.getByText(INTENT.summary)).toBeInTheDocument();
+    expect(screen.getByText(`“${INTENT.summary}”`)).toBeInTheDocument();
     expect(screen.getByText("Add token-bucket limiter middleware")).toBeInTheDocument();
     expect(screen.getByText("Wire limiter into the API router")).toBeInTheDocument();
     expect(screen.getByText("Per-user quotas")).toBeInTheDocument();
     expect(screen.getByText("Admin dashboard for limits")).toBeInTheDocument();
+    expect(screen.getByText("No notable risks flagged.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Recompute" }));
     expect(computeMutate).toHaveBeenCalledTimes(1);

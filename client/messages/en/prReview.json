@@ -134,6 +134,17 @@
     "recompute": "Recompute",
     "inScope": "In scope",
     "outOfScope": "Out of scope",
-    "computedAt": "Derived {time}"
+    "computedAt": "Derived {time}",
+    "riskAreas": {
+      "sectionLabel": "Risk areas",
+      "empty": "No notable risks flagged."
+    }
+  },
+  "blastRadius": {
+    "sectionLabel": "Blast radius",
+    "comingSoon": "Coming soon — downstream callers, endpoints, and cron jobs touched by this PR."
+  },
+  "prBrief": {
+    "sectionLabel": "PR Brief"
   }
 }

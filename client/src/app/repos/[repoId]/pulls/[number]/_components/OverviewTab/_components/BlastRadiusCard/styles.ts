@@ -1,20 +1,19 @@
 import type { CSSProperties } from "react";
 
 export const s = {
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 20,
-    alignItems: "start",
-  } satisfies CSSProperties,
-  descriptionBox: {
+  box: {
     border: "1px solid var(--border)",
     borderRadius: 8,
     background: "var(--bg-elevated)",
     padding: 18,
-    fontSize: 14,
-    color: "var(--text-secondary)",
-    whiteSpace: "pre-wrap",
+    minHeight: 88,
+    display: "flex",
+    alignItems: "center",
+  } satisfies CSSProperties,
+  comingSoon: {
+    fontSize: 13,
     lineHeight: 1.55,
+    color: "var(--text-muted)",
+    margin: 0,
   } satisfies CSSProperties,
 } as const;
