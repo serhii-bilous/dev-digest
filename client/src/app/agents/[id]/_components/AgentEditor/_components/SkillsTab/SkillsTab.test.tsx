@@ -12,8 +12,8 @@ const SKILLS: Skill[] = [
 // Both attached, s1 first (order 0), s2 second (order 1) — lets a reorder test
 // move s1 down / s2 up.
 let LINKS: AgentSkillLink[] = [
-  { agent_id: "ag1", skill_id: "s1", order: 0 },
-  { agent_id: "ag1", skill_id: "s2", order: 1 },
+  { agent_id: "ag1", skill_id: "s1", order: 0, enabled: true },
+  { agent_id: "ag1", skill_id: "s2", order: 1, enabled: true },
 ];
 
 const setSkillsMutate = vi.fn();
@@ -31,8 +31,8 @@ afterEach(cleanup);
 beforeEach(() => {
   setSkillsMutate.mockClear();
   LINKS = [
-    { agent_id: "ag1", skill_id: "s1", order: 0 },
-    { agent_id: "ag1", skill_id: "s2", order: 1 },
+    { agent_id: "ag1", skill_id: "s1", order: 0, enabled: true },
+    { agent_id: "ag1", skill_id: "s2", order: 1, enabled: true },
   ];
 });
 

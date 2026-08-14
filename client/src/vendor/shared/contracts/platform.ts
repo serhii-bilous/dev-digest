@@ -53,8 +53,12 @@ export const FEATURE_MODELS: FeatureModelDef[] = [
     id: 'review_intent',
     label: 'PR Review · Intent',
     description: 'Derives a PR’s intent and scope before review.',
-    defaultProvider: 'openai',
-    defaultModel: 'gpt-4.1',
+    // Intent classification must stay cheap: OpenRouter's live /models
+    // endpoint (already integrated elsewhere in the app) is the
+    // authoritative source for current pricing/availability — this is only
+    // the fallback default for a workspace with no override.
+    defaultProvider: 'openrouter',
+    defaultModel: 'deepseek/deepseek-v4-flash',
   },
   {
     id: 'risk_brief',
