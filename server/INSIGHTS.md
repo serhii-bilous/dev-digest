@@ -35,6 +35,20 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Codebase Patterns
 
+- **2026-08-15** — `ReviewRepository`'s raw query layer and its DTO layer
+  disagree on casing for the same finding fields: `repo.reviewsForPull()`
+  returns `FindingRow[]` straight off Drizzle, with `startLine`/`endLine`
+  (camelCase, matching the DB column names); `reviewToDto()` in `helpers.ts`
+  is what maps those to the wire contract's `start_line`/`end_line`
+  (snake_case). A new consumer that calls `repo.reviewsForPull()` directly
+  (bypassing `service.reviewsForPull()`/`reviewToDto`) — e.g. to build a
+  second, unrelated view over the same findings — must read `.startLine`,
+  not `.start_line`, or it silently gets `undefined` with no type error
+  (Drizzle's inferred row type has no `start_line` field to typo into
+  safely). Evidence: `src/modules/reviews/repository/review.repo.ts:41`
+  (`startLine: f.start_line` on insert) vs `src/modules/reviews/helpers.ts:52`
+  (`start_line: row.startLine` on the DTO mapper).
+
 - **2026-08-13** — A repository class with a `private db: Db` constructor
   param (e.g. `ReviewRepository`) is nominally typed by that private field —
   TypeScript will not accept a duck-typed stub object in its place, only a
@@ -65,6 +79,19 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-08-05** — `src/adapters/` is not a pure IO ring: it also holds pure functions that services legitimately import, so an import-path rule of the form "services must not import `adapters/*`" would flag correct code — classify by whether the code leaves the process, not by folder. Evidence: `src/adapters/git/diff-parser.ts:14` (`parseUnifiedDiff`, imported by `src/modules/reviews/diff-loader.ts:3`), `src/adapters/codeindex/extract.ts:182` (`extractEndpoints`, imported by `src/modules/repo-intel/service.ts:22`).
 
 ## Tool & Library Notes
+
+- **2026-08-15** — The seeded `acme/payments-api` PR #482's `files_count`
+  metadata (9) does not match how many `pr_files` rows are actually
+  persisted for it (4) — the seed only inserted a handful of files, not the
+  full set the PR "claims" to have. Any feature that renders per-file diff
+  data against this fixture (Smart Diff, file-list UIs) will only ever see
+  those 4 files, not 9, even though the PR header shows "9 files". For a
+  realistic large-PR fixture with real patch content instead, use
+  `ai-agentic-engineering-neo/dev-digest` PR #136 (`feat/l05 why risk
+  brief`) — 479 real files with real unified-diff patches, actually
+  imported from GitHub. Evidence: `GET /pulls/0a0293ab-.../smart-diff`
+  returns 4 files total across all three role groups vs the PR's own
+  `files_count: 9`.
 
 - **2026-08-13** — `ContainerOverrides.llm` is a `Record` keyed by provider id
   (`'openai' | 'anthropic' | 'openrouter'`); `container.llm(id)` looks up

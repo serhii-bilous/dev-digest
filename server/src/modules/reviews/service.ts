@@ -1,11 +1,12 @@
 import type { Container } from '../../platform/container.js';
-import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
+import type { FindingActionKind, RunEventKind, RunTrace, SmartDiff } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository, type IntentRecord } from './repository.js';
 import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
 import { IntentClassifier } from './intent-classifier.js';
+import { buildSmartDiff } from './smart-diff-service.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { reviewToDto } from './helpers.js';
 
@@ -191,5 +192,14 @@ export class ReviewService {
     if (!pull) throw new NotFoundError('Pull request not found');
     const record = await this.repo.getIntent(prId);
     return record ?? null;
+  }
+
+  /**
+   * Smart Diff view for a PR: files grouped core/wiring/boilerplate by
+   * deterministic path rules, annotated with existing findings' line numbers.
+   * Read-only, computed on demand — no LLM call, no GitHub round trip.
+   */
+  async smartDiffForPull(workspaceId: string, prId: string): Promise<SmartDiff> {
+    return buildSmartDiff(this.repo, workspaceId, prId);
   }
 }

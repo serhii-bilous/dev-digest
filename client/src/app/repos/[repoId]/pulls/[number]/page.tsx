@@ -175,6 +175,7 @@ export default function PRDetailPage() {
             prId={prId}
             filesCount={pr.files_count}
             files={pr.files}
+            findings={allFindings}
             canComment={pr.status === "open"}
           />
         )}

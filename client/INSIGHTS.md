@@ -81,6 +81,16 @@ _None yet._
 
 ## Recurring Errors & Fixes
 
+- **2026-08-15** — Running `pnpm build` (production `next build`) in `client/`
+  while a `pnpm dev` (`next dev`) server is already running against the same
+  `.next/` directory corrupts the dev server's runtime: it starts throwing
+  `Runtime Error: Cannot find module './vendor-chunks/next@…_@babel+core@…
+  ...js'` on every page, even pages that predate the build and were working
+  seconds earlier. `next build` and `next dev` must not share one `.next/`
+  concurrently. Fix: kill the `next dev` process, `rm -rf client/.next`, and
+  restart `pnpm dev` — a plain restart without clearing `.next` was not
+  enough to recover in one instance of this.
+
 - **2026-08-14** — `fireEvent.dragOver(el, { clientY: N })` never sets
   `clientY` on the event RTL dispatches: `@testing-library/dom`'s event map
   types `dragOver` as `DragEvent`, not `MouseEvent`, so the init dict's
