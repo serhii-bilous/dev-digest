@@ -1,7 +1,32 @@
 import { describe, it, expect } from 'vitest';
-import type { LLMProvider, StructuredResult } from '@devdigest/shared';
+import type { LLMProvider, StructuredResult, UnifiedDiff } from '@devdigest/shared';
 import { MockLLMProvider, MockGitClient } from '../../server/src/adapters/mocks.js';
 import { reviewPullRequest } from '../src/index.js';
+
+/** A synthetic multi-file diff whose `raw` text is big enough to exceed a
+ *  small `modelContextLength` at the engine's conservative ~3-chars/token
+ *  estimate, so the context-fallback path in selectMode() actually triggers. */
+function bigDiff(fileCount: number, charsPerFile: number): UnifiedDiff {
+  const files = Array.from({ length: fileCount }, (_, i) => ({
+    path: `src/file${i}.ts`,
+    additions: 100,
+    deletions: 0,
+    hunks: [
+      {
+        file: `src/file${i}.ts`,
+        oldStart: 1,
+        oldLines: 0,
+        newStart: 1,
+        newLines: 100,
+        newLineNumbers: Array.from({ length: 100 }, (_, n) => n + 1),
+      },
+    ],
+  }));
+  const raw = files
+    .map((f) => `diff --git a/${f.path} b/${f.path}\n` + '+x\n'.repeat(charsPerFile / 3))
+    .join('\n');
+  return { raw, files };
+}
 
 /**
  * Engine-level test for reviewPullRequest (the core lifted out of the server's
@@ -176,5 +201,81 @@ describe('reviewPullRequest (engine)', () => {
     expect(user).toContain('## Stated PR intent');
     expect(user).toContain('<untrusted source="intent">');
     expect(user).toContain('Only refactor the config loader; do not add new features.');
+  });
+
+  describe('context-length fallback (strategy vs. a small-context model)', () => {
+    const clean = { verdict: 'approve', summary: 'ok', score: 100, findings: [] };
+
+    it('single-pass falls back to map-reduce when the diff clearly will not fit modelContextLength', async () => {
+      const llm = new MockLLMProvider('openai', { structured: clean });
+      const diff = bigDiff(3, 60_000); // ~20k tokens/file at the ~3 chars/token estimate
+
+      const events: string[] = [];
+      const outcome = await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'qwen/qwen-2.5-7b-instruct',
+        diff,
+        llm,
+        strategy: 'single-pass',
+        modelContextLength: 32_768,
+        onEvent: (e) => events.push(e.msg),
+      });
+
+      expect(outcome.mode).toBe('map-reduce');
+      expect(outcome.chunks).toHaveLength(3);
+      expect(events.some((m) => m.includes("qwen/qwen-2.5-7b-instruct's context window"))).toBe(true);
+    });
+
+    it('single-pass stays single-pass on the same diff when modelContextLength is unknown (pre-existing behaviour)', async () => {
+      const llm = new MockLLMProvider('openai', { structured: clean });
+      const diff = bigDiff(3, 60_000);
+
+      const outcome = await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'qwen/qwen-2.5-7b-instruct',
+        diff,
+        llm,
+        strategy: 'single-pass',
+        // no modelContextLength supplied
+      });
+
+      expect(outcome.mode).toBe('single-pass');
+      expect(outcome.chunks).toHaveLength(1);
+    });
+
+    it('single-pass stays single-pass when the diff comfortably fits modelContextLength', async () => {
+      const llm = new MockLLMProvider('openai', { structured: clean });
+      const diff = await new MockGitClient().diff(); // small fixture diff
+
+      const outcome = await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'gpt-4.1',
+        diff,
+        llm,
+        strategy: 'single-pass',
+        modelContextLength: 128_000,
+      });
+
+      expect(outcome.mode).toBe('single-pass');
+    });
+
+    it("'auto' also falls back to map-reduce when the diff would not fit, even under the line threshold", async () => {
+      const llm = new MockLLMProvider('openai', { structured: clean });
+      // 2 files, small line counts (under DEFAULT_MAP_THRESHOLD_LINES=400) but
+      // each file's raw text is large — auto's line-count check alone would
+      // pick single-pass; the context check must still catch it.
+      const diff = bigDiff(2, 60_000);
+
+      const outcome = await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'qwen/qwen-2.5-7b-instruct',
+        diff,
+        llm,
+        strategy: 'auto',
+        modelContextLength: 32_768,
+      });
+
+      expect(outcome.mode).toBe('map-reduce');
+    });
   });
 });

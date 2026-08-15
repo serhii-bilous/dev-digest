@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { LLMProvider, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers, severityCounts } from '@devdigest/reviewer-core';
 import { RunLogger, type PinoLike } from '../../platform/run-logger.js';
 import type * as schema from '../../db/schema.js';
@@ -162,6 +162,14 @@ export class ReviewRunExecutor {
         { kind: 'tool' },
       );
 
+      // Best-effort: look up the target model's context window so a
+      // single-pass agent can fall back to map-reduce instead of failing
+      // outright on a diff too large for that model. A catalog-fetch failure
+      // (or the model not being in it) must never break the run — it just
+      // means selectMode() respects the configured strategy exactly, same as
+      // before this lookup existed.
+      const modelContextLength = await this.resolveModelContextLength(llm, agent.model, runLog);
+
       // Per-agent repo-intel toggle (Agent editor). When an agent opts out we
       // skip all enrichment entirely so its prompt is identical to the
       // repo-intel-off baseline — independent of the global REPO_INTEL_ENABLED
@@ -229,6 +237,7 @@ export class ReviewRunExecutor {
         // Stated PR intent/scope digest, when computed. Same omit-when-empty
         // contract as the other digests.
         ...(intentDigest ? { intent: intentDigest } : {}),
+        ...(modelContextLength ? { modelContextLength } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -344,6 +353,28 @@ export class ReviewRunExecutor {
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
+    }
+  }
+
+  /**
+   * The target model's context window (tokens), from the provider's model
+   * catalog — feeds `reviewPullRequest`'s single-pass → map-reduce context
+   * fallback. Best-effort and silent: `listModels()` is a live catalog fetch
+   * for some providers (e.g. OpenRouter), so a network hiccup or an unlisted
+   * model must degrade to "unknown" (undefined), not fail the run.
+   */
+  private async resolveModelContextLength(
+    llm: LLMProvider,
+    model: string,
+    runLog: RunLogger,
+  ): Promise<number | undefined> {
+    try {
+      const models = await llm.listModels();
+      const found = models.find((m) => m.id === model)?.contextLength;
+      return found ?? undefined;
+    } catch (err) {
+      runLog.info(`model context length: lookup failed — ${(err as Error).message}`);
+      return undefined;
     }
   }
 

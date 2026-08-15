@@ -84,6 +84,16 @@ export interface ReviewInput {
   /** Override the map-reduce line threshold. */
   mapThresholdLines?: number;
   /**
+   * The target model's context window in tokens, when known (from the
+   * provider's model catalog). When supplied, a diff that would clearly not
+   * fit in one prompt forces map-reduce even for an agent configured
+   * `strategy: 'single-pass'` — otherwise that agent always sends the whole
+   * diff in one call and fails outright on a large diff against a small-
+   * context model, regardless of which model is picked. Unknown/omitted →
+   * the configured strategy is respected exactly (pre-existing behaviour).
+   */
+  modelContextLength?: number;
+  /**
    * OpenRouter session id — forwarded on every LLM call so all chunks of this
    * review group into one session in the OpenRouter dashboard.
    */
@@ -118,18 +128,49 @@ export interface ReviewOutcome {
   raw: string;
 }
 
-function selectMode(strategy: ReviewStrategy, diff: UnifiedDiff, threshold: number): ReviewMode {
-  if (strategy === 'single-pass') return 'single-pass';
+/**
+ * Reserved for everything a single-pass prompt sends besides the diff itself
+ * (system prompt, skills, repo map, task framing) plus the model's output —
+ * conservative on purpose: better to chunk a little earlier than to still
+ * blow the context window after "fitting" by this estimate.
+ */
+export const CONTEXT_SAFETY_MARGIN_TOKENS = 4000;
+
+/** Conservative (over-)estimate: ~3 chars/token rather than the typical ~4. */
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 3);
+}
+
+/** Would the whole diff, in one prompt, clearly not fit this model's context? */
+function tooBigForModel(diff: UnifiedDiff, modelContextLength: number | undefined): boolean {
+  if (!modelContextLength || diff.files.length <= 1) return false;
+  return estimateTokens(diff.raw) + CONTEXT_SAFETY_MARGIN_TOKENS > modelContextLength;
+}
+
+function selectMode(
+  strategy: ReviewStrategy,
+  diff: UnifiedDiff,
+  threshold: number,
+  modelContextLength: number | undefined,
+): ReviewMode {
+  if (strategy === 'single-pass') {
+    // A configured single-pass agent still can't out-argue physics: a diff
+    // that clearly won't fit the model's context window falls back to
+    // map-reduce rather than failing outright on every large PR.
+    return tooBigForModel(diff, modelContextLength) ? 'map-reduce' : 'single-pass';
+  }
   if (strategy === 'map-reduce') return diff.files.length > 1 ? 'map-reduce' : 'single-pass';
-  // auto: map-reduce only when the diff is both large AND multi-file (else 1 call).
+  // auto: map-reduce when the diff is large + multi-file, or wouldn't fit the model.
   const totalLines = diff.files.reduce((n, f) => n + f.additions + f.deletions, 0);
-  return totalLines > threshold && diff.files.length > 1 ? 'map-reduce' : 'single-pass';
+  const large = totalLines > threshold && diff.files.length > 1;
+  return large || tooBigForModel(diff, modelContextLength) ? 'map-reduce' : 'single-pass';
 }
 
 export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutcome> {
   const threshold = input.mapThresholdLines ?? DEFAULT_MAP_THRESHOLD_LINES;
   const maxRetries = input.maxRetries ?? DEFAULT_REVIEW_MAX_RETRIES;
-  const mode = selectMode(input.strategy ?? 'auto', input.diff, threshold);
+  const mode = selectMode(input.strategy ?? 'auto', input.diff, threshold, input.modelContextLength);
+  const forcedByContext = mode === 'map-reduce' && tooBigForModel(input.diff, input.modelContextLength);
   const emit = (kind: RunEventKind, msg: string, data?: unknown) =>
     input.onEvent?.({ kind, msg, data });
 
@@ -156,7 +197,9 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   emit(
     'info',
     mode === 'map-reduce'
-      ? `Large diff → map-reduce over ${input.diff.files.length} files`
+      ? forcedByContext
+        ? `Diff too large for ${input.model}'s context window → falling back to map-reduce over ${input.diff.files.length} files`
+        : `Large diff → map-reduce over ${input.diff.files.length} files`
       : `Reviewing ${input.diff.files.length} changed file(s) in one pass`,
   );
 
