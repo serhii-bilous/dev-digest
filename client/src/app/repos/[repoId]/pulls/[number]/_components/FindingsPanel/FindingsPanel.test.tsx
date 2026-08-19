@@ -11,9 +11,13 @@ vi.mock("../../../../../../../lib/hooks/reviews", () => ({
 
 import { FindingsPanel } from "./FindingsPanel";
 
+// jsdom doesn't implement scrollIntoView — FindingCard's nav-target effect calls it.
+Element.prototype.scrollIntoView = vi.fn();
+
 afterEach(() => {
   cleanup();
   actionMutate.mockClear();
+  vi.restoreAllMocks();
 });
 
 const FINDINGS: FindingRecord[] = [
@@ -111,5 +115,11 @@ describe("FindingsPanel (smoke)", () => {
     fireEvent.keyDown(window, { key: "k" }); // already at idx 0, stays at idx 0
     fireEvent.keyDown(window, { key: "d" });
     expect(actionMutate).toHaveBeenCalledWith({ findingId: "f1", action: "dismiss", prId: "pr1" });
+  });
+
+  it("targetFindingId expands + focuses a non-first, initially-collapsed card", () => {
+    renderWithIntl(<FindingsPanel findings={FINDINGS} prId="pr1" targetFindingId="f2" targetNonce={1} />);
+    // f2 has no defaultExpanded (only idx 0 does) — it must still open via the target effect.
+    expect(screen.getByText("Loops a query per row.")).toBeInTheDocument();
   });
 });

@@ -105,6 +105,12 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Intent — the PR's stated summary/in-scope/out-of-scope, when it has
+    // been computed. Loaded once here (like diff above) and shared across
+    // every queued agent, not recomputed per agent. Best-effort: never let
+    // this break the run.
+    const intentDigest = await this.buildIntentDigest(pull.id, runLog);
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -112,7 +118,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, intentDigest, agent, runId, runLog);
         logger?.info(
           {
             runId,
@@ -141,6 +147,7 @@ export class ReviewRunExecutor {
     pull: PullRow,
     repo: typeof schema.repos.$inferSelect,
     diff: UnifiedDiff,
+    intentDigest: string | undefined,
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
@@ -189,10 +196,6 @@ export class ReviewRunExecutor {
       // prompt is identical to the pre-T3 shape.
       const repoMap = repoIntelOn ? await this.buildRepoMapDigest(pull.repoId, runLog) : undefined;
       const rankNote = repoIntelOn ? await this.buildRankNote(pull.repoId, diff, runLog) : '';
-
-      // Intent — the PR's stated summary/in-scope/out-of-scope, when it has
-      // been computed. Best-effort: never let this break the run.
-      const intentDigest = await this.buildIntentDigest(pull.id, runLog);
 
       // Skills — the agent's linked + enabled skill bodies (Agent Editor's
       // Skills tab), independent of repo-intel. A skill only lands here when

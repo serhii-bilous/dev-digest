@@ -127,6 +127,21 @@ describe("ReviewRunAccordion — targetRunId auto-open", () => {
     expect(screen.queryByText("summary")).not.toBeInTheDocument();
     expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
   });
+
+  it("forwards targetFindingId into FindingsPanel/FindingCard so the matching (non-first) card force-expands too", () => {
+    renderAccordion(
+      review({
+        run_id: "run1",
+        findings: [
+          finding({ id: "f1", title: "First finding", rationale: "first rationale" }),
+          finding({ id: "f2", title: "Second finding", rationale: "second rationale" }),
+        ],
+      }),
+      { targetRunId: "run1", targetFindingId: "f2", targetNonce: 1 },
+    );
+    // f2 is not index 0 (no defaultExpanded) — it must still open via the forwarded nav target.
+    expect(screen.getByText("second rationale")).toBeInTheDocument();
+  });
 });
 
 describe("ReviewRunAccordion — delete run", () => {

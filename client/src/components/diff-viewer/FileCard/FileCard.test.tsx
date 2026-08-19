@@ -89,7 +89,7 @@ describe("FileCard — findings badge", () => {
       role: "core",
       findings: [finding({ id: "f1", severity: "WARNING" }), finding({ id: "f2", severity: "WARNING" })],
     });
-    const badge = screen.getByRole("button", { name: /finding/i });
+    const badge = screen.getByRole("button", { name: /click to jump to it/i });
     expect(within(badge).getByText("2")).toBeInTheDocument();
   });
 
@@ -100,7 +100,7 @@ describe("FileCard — findings badge", () => {
     });
     expect(screen.queryByText("line two")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /finding/i }));
+    fireEvent.click(screen.getByRole("button", { name: /click to jump to it/i }));
 
     expect(screen.getByText("line two")).toBeInTheDocument();
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
@@ -110,8 +110,34 @@ describe("FileCard — findings badge", () => {
     renderFileCard({ role: "core", findings: [finding({ id: "f1" })] });
     expect(screen.getByText("line two")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /finding/i }));
+    fireEvent.click(screen.getByRole("button", { name: /click to jump to it/i }));
 
     expect(screen.getByText("line two")).toBeInTheDocument();
+  });
+});
+
+describe("FileCard — per-line finding badges", () => {
+  it("renders a clickable badge on the matching line for each finding, keyed by id", () => {
+    const onFindingClick = vi.fn();
+    const f1 = finding({ id: "f1", severity: "WARNING", start_line: 2, end_line: 2 });
+    const f2 = finding({ id: "f2", severity: "CRITICAL", start_line: 2, end_line: 2 });
+    renderFileCard({ role: "core", findings: [f1, f2], onFindingClick });
+
+    // Two per-line buttons on "line two", none on the other lines.
+    const lineTwo = screen.getByText("line two").closest<HTMLElement>("div[style*='display: flex']")!;
+    const lineButtons = within(lineTwo).getAllByRole("button");
+    expect(lineButtons).toHaveLength(2);
+
+    fireEvent.click(lineButtons[0]!);
+    expect(onFindingClick).toHaveBeenCalledWith(f1);
+  });
+
+  it("does not render a per-line badge when no finding targets that line", () => {
+    renderFileCard({
+      role: "core",
+      findings: [finding({ id: "f1", start_line: 99, end_line: 99 })],
+    });
+    const lineTwo = screen.getByText("line two").closest<HTMLElement>("div[style*='display: flex']")!;
+    expect(within(lineTwo).queryByRole("button")).not.toBeInTheDocument();
   });
 });

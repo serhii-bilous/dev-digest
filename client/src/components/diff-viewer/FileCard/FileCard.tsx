@@ -20,7 +20,7 @@ import {
 import { s, chevronFor } from "../styles";
 import { CodeLine } from "../CodeLine";
 import { OutdatedComments } from "../OutdatedComments";
-import { countBySeverity, severitiesForLine } from "../helpers-findings";
+import { countBySeverity, findingsForLine } from "../helpers-findings";
 
 /** Threads anchored to a given parsed line (RIGHT=new, LEFT=old). */
 function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): CommentThread[] {
@@ -38,6 +38,7 @@ export function FileCard({
   commenting,
   role,
   findings,
+  onFindingClick,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
@@ -47,6 +48,9 @@ export function FileCard({
   /** This file's findings (already scoped to it by the caller) — drives the
    *  header badge and the inline per-line severity tags. */
   findings?: FindingRecord[];
+  /** Clicking an inline per-line finding badge (Smart Diff) — bubbles up to
+   *  page-level cross-tab navigation to that finding's card. */
+  onFindingClick?: (finding: FindingRecord) => void;
 }) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
@@ -144,7 +148,8 @@ export function FileCard({
                 path={file.path}
                 threads={threadsForLine(ln, matched)}
                 commenting={commenting}
-                findingSeverities={findings ? severitiesForLine(ln, findings) : undefined}
+                lineFindings={findings ? findingsForLine(ln, findings) : undefined}
+                onFindingClick={onFindingClick}
                 registerLineRef={(lineNo, el) => {
                   lineRefs.current.set(lineNo, el);
                 }}

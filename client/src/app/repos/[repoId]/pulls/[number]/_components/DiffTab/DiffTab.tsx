@@ -17,9 +17,12 @@ interface DiffTabProps {
   findings: FindingRecord[];
   /** Inline commenting is offered only on open PRs (GitHub rejects otherwise). */
   canComment?: boolean;
+  /** Clicking a Smart Diff per-line finding badge — bubbles up to page-level
+   *  cross-tab navigation to that finding's card in the Findings tab. */
+  onFindingClick?: (finding: FindingRecord) => void;
 }
 
-export function DiffTab({ prId, filesCount, files, findings, canComment }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, findings, canComment, onFindingClick }: DiffTabProps) {
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
   const { data: smartDiff, isLoading: smartDiffLoading } = useSmartDiff(prId);
@@ -70,6 +73,7 @@ export function DiffTab({ prId, filesCount, files, findings, canComment }: DiffT
         files={files}
         findings={findings}
         commenting={commenting}
+        onFindingClick={onFindingClick}
       />
     </section>
   );

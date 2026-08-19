@@ -26,6 +26,11 @@ interface FindingsTabProps {
   /** Page-level `?severity=` selection, shared by every run's filter bar. */
   selectedSeverities?: Severity[];
   onSelectedSeveritiesChange?: (next: Severity[]) => void;
+  /** Set from the Diff tab's per-line finding badge click (page-level state,
+   *  since DiffTab unmounts when the tab switches) — opens + scrolls to this
+   *  finding's run/card. `targetFindingNonce` re-triggers on repeat clicks. */
+  targetFindingId?: string | null;
+  targetFindingNonce?: number;
   onOpenTrace: (id: string) => void;
   onDelete: (id: string) => void;
   onRunDone: () => void;
@@ -44,6 +49,8 @@ export function FindingsTab({
   headSha,
   selectedSeverities,
   onSelectedSeveritiesChange,
+  targetFindingId,
+  targetFindingNonce,
   onOpenTrace,
   onDelete,
   onRunDone,
@@ -72,11 +79,28 @@ export function FindingsTab({
 
   // Timeline → Review-runs navigation: clicking an agent name in the timeline
   // opens + scrolls to that run's accordion below. The nonce re-triggers the
-  // scroll even when the same run is clicked twice.
-  const [target, setTarget] = React.useState<{ runId: string; n: number } | null>(null);
+  // scroll even when the same run is clicked twice. `findingId` is set only
+  // when the navigation originated from a Smart Diff finding badge (below) —
+  // a plain Timeline click naturally carries none.
+  const [target, setTarget] = React.useState<{ runId: string; findingId?: string; n: number } | null>(null);
   const handleGoToReview = useCallback((runId: string) => {
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
+
+  // Diff tab → Findings tab navigation: resolve which run owns the clicked
+  // finding, then reuse the same open+scroll mechanism as the Timeline flow.
+  const handleGoToFinding = useCallback(
+    (findingId: string) => {
+      const owningRun = runs.find((r) => r.findings.some((f) => f.id === findingId));
+      if (!owningRun?.run_id) return;
+      setTarget((p) => ({ runId: owningRun.run_id!, findingId, n: (p?.n ?? 0) + 1 }));
+    },
+    [runs],
+  );
+  React.useEffect(() => {
+    if (targetFindingId) handleGoToFinding(targetFindingId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetFindingId, targetFindingNonce]);
 
   // Timeline rows carry only a denormalized findings_count/blockers total —
   // this joins each run to its own findings (with severity), already on this
@@ -179,6 +203,7 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            targetFindingId={target?.findingId ?? null}
             selectedSeverities={selectedSeverities}
             onSelectedSeveritiesChange={onSelectedSeveritiesChange}
           />

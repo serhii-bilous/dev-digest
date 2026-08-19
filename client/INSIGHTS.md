@@ -81,6 +81,22 @@ _None yet._
 
 ## Recurring Errors & Fixes
 
+- **2026-08-18** — Adding a new clickable element that renders near an
+  existing one sharing a generic word breaks `getByRole("button", { name:
+  /finding/i })`-style loose-regex queries via "found multiple elements",
+  not via a clear diff — the failure only shows up if a test fixture's data
+  happens to make both render together. Making Smart Diff's per-line finding
+  badges (`CodeLine.tsx`) real `<button>`s (previously inert `<span>`s) broke
+  two *unrelated* existing tests this way: `FileCard.test.tsx` and
+  `SmartDiffViewer.test.tsx` both had a `finding()` factory defaulting
+  `start_line` to a value that matched a real rendered line in their patch
+  fixture, so their `/finding/i` query — meant for the file-header aggregate
+  badge — started matching the new per-line badge too. Fix: anchor such
+  queries on the more specific accessible-name text unique to the target
+  element (here, the header badge's `"— click to jump to it"` suffix) rather
+  than a generic word likely to be reused by sibling UI. `client/src/components/diff-viewer/FileCard/FileCard.test.tsx`,
+  `client/src/components/smart-diff-viewer/SmartDiffViewer/SmartDiffViewer.test.tsx`
+
 - **2026-08-15** — Running `pnpm build` (production `next build`) in `client/`
   while a `pnpm dev` (`next dev`) server is already running against the same
   `.next/` directory corrupts the dev server's runtime: it starts throwing

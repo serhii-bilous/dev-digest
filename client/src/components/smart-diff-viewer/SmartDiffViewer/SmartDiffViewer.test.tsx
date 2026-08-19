@@ -103,7 +103,7 @@ describe("SmartDiffViewer — group order", () => {
 describe("SmartDiffViewer — findings badge scroll", () => {
   it("clicking a file's findings badge opens it (if closed) and scrolls to the finding line", () => {
     renderViewer([finding()]);
-    const badge = screen.getByRole("button", { name: /finding/i });
+    const badge = screen.getByRole("button", { name: /click to jump to it/i });
     fireEvent.click(badge);
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   });

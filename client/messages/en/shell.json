@@ -47,6 +47,7 @@
     "smartOrder": "Smart order",
     "originalOrder": "Original order",
     "findingsBadgeTitle": "{count, plural, one {# finding} other {# findings}} — click to jump to it",
+    "lineFindingTitle": "{title} — open in Findings",
     "filesCount": "{count, plural, one {# file} other {# files}}",
     "group": {
       "core": { "label": "Core logic", "description": "The substance of the change — review closely" },

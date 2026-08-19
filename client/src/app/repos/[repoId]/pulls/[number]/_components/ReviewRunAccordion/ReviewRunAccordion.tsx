@@ -34,6 +34,7 @@ export function ReviewRunAccordion({
   headSha,
   targetRunId = null,
   targetNonce = 0,
+  targetFindingId = null,
   selectedSeverities,
   onSelectedSeveritiesChange,
 }: {
@@ -49,6 +50,10 @@ export function ReviewRunAccordion({
    *  (driven from the Timeline: clicking an agent name navigates here). */
   targetRunId?: string | null;
   targetNonce?: number;
+  /** Set alongside targetRunId/targetNonce when navigation originated from a
+   *  specific finding (Smart Diff badge) — forwarded to FindingsPanel so it
+   *  can scroll/highlight that exact FindingCard. */
+  targetFindingId?: string | null;
   selectedSeverities?: Severity[];
   onSelectedSeveritiesChange?: (next: Severity[]) => void;
 }) {
@@ -176,6 +181,8 @@ export function ReviewRunAccordion({
             headSha={headSha}
             selectedSeverities={selectedSeverities}
             onSelectedSeveritiesChange={onSelectedSeveritiesChange}
+            targetFindingId={targetFindingId}
+            targetNonce={targetNonce}
           />
         </div>
       )}

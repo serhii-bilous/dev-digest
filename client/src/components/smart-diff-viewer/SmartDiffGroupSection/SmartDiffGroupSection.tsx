@@ -15,11 +15,13 @@ export function SmartDiffGroupSection({
   filesByPath,
   findings,
   commenting,
+  onFindingClick,
 }: {
   group: SmartDiffGroup;
   filesByPath: Map<string, PrFile>;
   findings: FindingRecord[];
   commenting?: DiffCommentApi;
+  onFindingClick?: (finding: FindingRecord) => void;
 }) {
   const t = useTranslations("shell");
   if (group.files.length === 0) return null;
@@ -43,6 +45,7 @@ export function SmartDiffGroupSection({
               commenting={commenting}
               role={group.role}
               findings={findingsForFile(sdFile.path, findings)}
+              onFindingClick={onFindingClick}
             />
           );
         })}

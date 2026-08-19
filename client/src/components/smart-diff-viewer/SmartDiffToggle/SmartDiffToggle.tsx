@@ -17,12 +17,14 @@ export function SmartDiffToggle({
   files,
   findings,
   commenting,
+  onFindingClick,
 }: {
   smartDiff: SmartDiff | undefined;
   isLoading: boolean;
   files: PrFile[];
   findings: FindingRecord[];
   commenting?: DiffCommentApi;
+  onFindingClick?: (finding: FindingRecord) => void;
 }) {
   const t = useTranslations("shell");
   const [mode, setMode] = React.useState<"smart" | "original">("smart");
@@ -50,7 +52,13 @@ export function SmartDiffToggle({
         </div>
       </div>
       {mode === "smart" && smartDiff ? (
-        <SmartDiffViewer smartDiff={smartDiff} files={files} findings={findings} commenting={commenting} />
+        <SmartDiffViewer
+          smartDiff={smartDiff}
+          files={files}
+          findings={findings}
+          commenting={commenting}
+          onFindingClick={onFindingClick}
+        />
       ) : (
         <DiffViewer files={files} commenting={commenting} />
       )}

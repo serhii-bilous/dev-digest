@@ -31,6 +31,16 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-08-05** — `pnpm db:generate` run on a machine whose migration journal diverged from upstream main silently REWRITES committed `_journal.json` history instead of appending: commit `641b637` replaced entry 10's tag with `0010_polite_sasquatch` (a file that exists on no branch) and dropped `0011_nasty_pretty_boy`, so every fresh-DB lane crashed with `No file …0010_polite_sasquatch.sql found` while every already-migrated DB kept passing, and the regenerated snapshots lost the `critical_count`/`warning_count`/`suggestion_count` columns that `src/db/schema/runs.ts:39` still declares. Evidence: `git diff ae55e4b 641b637 -- server/src/db/migrations/meta/_journal.json`.
   - The repair, for next time: restore upstream's journal entries and `meta/0011_snapshot.json`, renumber the branch's migrations/snapshots after them (here 0011–0015 → 0012–0016), re-add the lost columns to the renumbered snapshots, relink the first renumbered snapshot's `prevId`, and hand-apply the lost columns to any DB that migrated from the broken journal — drizzle's migrator compares only `when` timestamps, so a restored older entry never auto-applies to an existing DB.
 
+- **2026-08-18** — `test/reviews.it.test.ts`'s "runs a review: map-reduce +
+  grounding drops the hallucinated finding, keeps the valid one" fails on a
+  clean `feat/HW4-smart-diff` checkout, reproducibly, against real
+  Testcontainers Postgres: `expect(listed.findings_counts).toEqual(...)`
+  gets `undefined` instead of the expected counts object. Confirmed
+  pre-existing (not caused by unrelated work) via `git stash` + rerun on
+  unmodified `HEAD`. Not yet root-caused — before spending time on unrelated
+  work in this area, check whether it's still broken; don't assume a local
+  regression you didn't cause. `server/test/reviews.it.test.ts:215`
+
 - **2026-08-05** — An import of a package absent from both `package.json` and `pnpm-lock.yaml` passes typecheck, unit, and integration lanes locally because a stray copy sits in `server/node_modules` (`fflate`, imported at `src/modules/skills/service.ts:1`), and only a fresh `pnpm install --frozen-lockfile` exposes it as TS2307 — verify a new import against a clean worktree install, not the dev tree. Evidence: `grep fflate package.json pnpm-lock.yaml` returned nothing while `pnpm typecheck` was green.
 
 ## Codebase Patterns
@@ -51,14 +61,27 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-08-13** — A repository class with a `private db: Db` constructor
   param (e.g. `ReviewRepository`) is nominally typed by that private field —
-  TypeScript will not accept a duck-typed stub object in its place, only a
-  real instance backed by a real `Db`. Any service/classifier that takes one
-  of these repositories as a constructor dependency (e.g.
-  `IntentClassifier(container, repo: ReviewRepository)`) therefore cannot get
-  a genuinely hermetic unit test, even though its other dependencies (LLM,
-  GitHub) are mockable via `Container` overrides — write it as a
-  `.it.test.ts` against a real Postgres instead, per `../TESTING.md`'s "one
-  real integration per data-backed workflow." `src/modules/reviews/repository.ts:30`
+  TypeScript will not accept a duck-typed stub object in its place via plain
+  structural assignment, only a real instance backed by a real `Db`.
+  **Corrected 2026-08-18:** this does NOT block a hermetic unit test — a
+  plain stub cast with `as unknown as ReviewRepository` (or the equivalent
+  `Container`) sails through `tsc` (assertions bypass structural checking)
+  and behaves correctly at runtime, since JS method/property access doesn't
+  see TS's private-field branding at all. `ReviewRunExecutor` (constructor
+  takes `container: Container, repo: ReviewRepository, agents:
+  Container['agentsRepo']`) now has exactly this: a hand-built `Container`
+  covering only `runBus` (real `RunBus` from `platform/sse.ts` — genuinely
+  DB-free), `git` (`MockGitClient`), `llm` (`MockLLMProvider`), `agentsRepo`
+  (`{enabledSkillsForPrompt, linkedSkills}` stubs), `tokenizer` (`{count}`
+  stub), plus a `ReviewRepository` stub covering `getIntent`/`insertReview`/
+  `insertFindings`/`markReviewed`/`completeAgentRun`/`saveRunTrace`. Setting
+  every queued agent's `repoIntel: false` skips the repo-intel-gated digest
+  builders so the fake `Container` doesn't need a `repoIntel` facade either.
+  Confirmed the test actually exercises the code (not just typechecks) by
+  reverting the fix it guards and watching it fail. `.it.test.ts` is still
+  right when the DB itself is what's under test (real SQL/migrations); it is
+  not a requirement just because a constructor parameter happens to be
+  nominally typed. `server/test/run-executor.test.ts`
 
 - **2026-07-29** — Twelve tables in `src/db/schema/` have zero references outside their own schema file and are meant to stay empty until a course lesson fills them, so an unused table is not dead code. Evidence: `server/README.md:9-14`.
 

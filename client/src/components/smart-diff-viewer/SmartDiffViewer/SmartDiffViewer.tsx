@@ -16,11 +16,13 @@ export function SmartDiffViewer({
   files,
   findings,
   commenting,
+  onFindingClick,
 }: {
   smartDiff: SmartDiff;
   files: PrFile[];
   findings: FindingRecord[];
   commenting?: DiffCommentApi;
+  onFindingClick?: (finding: FindingRecord) => void;
 }) {
   const filesByPath = React.useMemo(() => indexFilesByPath(files), [files]);
   const groupsByRole = React.useMemo(
@@ -40,6 +42,7 @@ export function SmartDiffViewer({
             filesByPath={filesByPath}
             findings={findings}
             commenting={commenting}
+            onFindingClick={onFindingClick}
           />
         );
       })}

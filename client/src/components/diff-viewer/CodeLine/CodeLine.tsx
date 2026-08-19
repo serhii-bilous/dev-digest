@@ -3,7 +3,9 @@
 "use client";
 
 import React from "react";
-import { SeverityBadge, type Severity } from "@devdigest/ui";
+import { useTranslations } from "next-intl";
+import { SeverityBadge } from "@devdigest/ui";
+import type { FindingRecord } from "@devdigest/shared";
 import { commentTargetFor, type CommentThread, type DiffCommentApi, cs } from "../comments";
 import { type Line } from "../helpers";
 import { s, lineRowFor, lineSignFor } from "../styles";
@@ -15,20 +17,26 @@ export function CodeLine({
   path,
   threads,
   commenting,
-  findingSeverities,
+  lineFindings,
+  onFindingClick,
   registerLineRef,
 }: {
   ln: Line;
   path: string;
   threads: CommentThread[];
   commenting?: DiffCommentApi;
-  /** Severities of any findings whose start_line matches this line's new-side
-   *  number — rendered as inline tags (Smart Diff). */
-  findingSeverities?: Severity[];
+  /** Findings whose start_line matches this line's new-side number — rendered
+   *  as clickable inline tags (Smart Diff). */
+  lineFindings?: FindingRecord[];
+  /** Clicking a line's finding badge — bubbles up to page-level navigation
+   *  that switches to the Findings tab and scrolls/highlights that finding's
+   *  card (Smart Diff). */
+  onFindingClick?: (finding: FindingRecord) => void;
   /** Lets the parent FileCard scroll a specific line into view (Smart Diff's
    *  "badge click → jump to line"), keyed by this line's new-side number. */
   registerLineRef?: (lineNo: number, el: HTMLDivElement | null) => void;
 }) {
+  const t = useTranslations("shell");
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
 
@@ -75,10 +83,22 @@ export function CodeLine({
         <span className="mono" style={s.lineText}>
           {ln.text || " "}
         </span>
-        {findingSeverities && findingSeverities.length > 0 && (
+        {lineFindings && lineFindings.length > 0 && (
           <span style={s.lineFindingTags}>
-            {findingSeverities.map((sev, i) => (
-              <SeverityBadge key={`${sev}-${i}`} severity={sev} compact={false} />
+            {lineFindings.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFindingClick?.(f);
+                }}
+                title={t("smartDiff.lineFindingTitle", { title: f.title })}
+                aria-label={t("smartDiff.lineFindingTitle", { title: f.title })}
+                style={s.findingsBadgeBtn}
+              >
+                <SeverityBadge severity={f.severity} compact={false} />
+              </button>
             ))}
           </span>
         )}
