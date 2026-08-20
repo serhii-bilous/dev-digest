@@ -56,7 +56,7 @@ export function findingRowToDto(row: FindingRow): ReviewDtoFinding {
     confidence: row.confidence,
     kind: (row.kind as Finding['kind']) ?? 'finding',
     trifecta_components: (row.trifectaComponents as Finding['trifecta_components']) ?? null,
-    evidence: null,
+    evidence: (row.evidence as Finding['evidence']) ?? null,
     review_id: row.reviewId,
     accepted_at: row.acceptedAt?.toISOString() ?? null,
     dismissed_at: row.dismissedAt?.toISOString() ?? null,

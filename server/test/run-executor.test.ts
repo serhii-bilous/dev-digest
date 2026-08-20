@@ -22,7 +22,7 @@ const DIFF = `diff --git a/src/config.ts b/src/config.ts
 +++ b/src/config.ts
 @@ -10,3 +10,4 @@
    port: 3000,
-+  stripeKey: "sk_live_xxx",
++  stripeKey: "FAKE_SECRET_FOR_TESTING_ONLY",
    redisUrl: x,`;
 
 const REVIEW_FIXTURE: Review = {
@@ -113,6 +113,11 @@ function buildFakeContainer(llm: MockLLMProvider, runBus: RunBus): Container {
     llm: async () => llm,
     agentsRepo: agentsRepoStub,
     tokenizer: { count: vi.fn().mockReturnValue(0) },
+    // The persist step now runs inside `db.transaction()` (insertReview →
+    // insertFindings → markReviewed as one unit of work) — the fake `repo`
+    // above is a full mock that ignores the `tx` handle it's given, so this
+    // only needs to invoke the callback, not simulate real transactionality.
+    db: { transaction: (fn: (tx: unknown) => Promise<unknown>) => fn({}) },
   } as unknown as Container;
 }
 
