@@ -141,10 +141,47 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 3);
 }
 
+/**
+ * Map-reduce chunks are independent LLM calls (one file each) — running them
+ * one at a time was the single biggest contributor to review wall-clock time
+ * on a large diff (a 183-file diff took minutes purely from serial waiting).
+ * Bounded so a large PR doesn't fire hundreds of requests at once.
+ */
+export const MAP_REDUCE_CONCURRENCY = 8;
+
+/** Run `fn` over `items` with at most `limit` in flight at once. */
+async function mapWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const item = items[next++]!;
+      await fn(item);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+}
+
 /** Would the whole diff, in one prompt, clearly not fit this model's context? */
 function tooBigForModel(diff: UnifiedDiff, modelContextLength: number | undefined): boolean {
   if (!modelContextLength || diff.files.length <= 1) return false;
   return estimateTokens(diff.raw) + CONTEXT_SAFETY_MARGIN_TOKENS > modelContextLength;
+}
+
+/**
+ * Large by line-count, the same signal 'auto' already uses. Fitting the
+ * model's INPUT context says nothing about whether a single completion can
+ * hold the OUTPUT — a diff this size tends to produce enough findings that
+ * one structured-output call truncates before the JSON closes. Used to force
+ * map-reduce even for a configured `strategy: 'single-pass'` agent, not just
+ * 'auto'.
+ */
+function isLargeDiff(diff: UnifiedDiff, threshold: number): boolean {
+  const totalLines = diff.files.reduce((n, f) => n + f.additions + f.deletions, 0);
+  return totalLines > threshold && diff.files.length > 1;
 }
 
 function selectMode(
@@ -153,16 +190,16 @@ function selectMode(
   threshold: number,
   modelContextLength: number | undefined,
 ): ReviewMode {
+  const large = isLargeDiff(diff, threshold);
   if (strategy === 'single-pass') {
     // A configured single-pass agent still can't out-argue physics: a diff
-    // that clearly won't fit the model's context window falls back to
-    // map-reduce rather than failing outright on every large PR.
-    return tooBigForModel(diff, modelContextLength) ? 'map-reduce' : 'single-pass';
+    // that clearly won't fit the model's context window, or is simply large
+    // enough that its output won't fit one bounded completion, falls back to
+    // map-reduce rather than failing/truncating outright on every large PR.
+    return large || tooBigForModel(diff, modelContextLength) ? 'map-reduce' : 'single-pass';
   }
   if (strategy === 'map-reduce') return diff.files.length > 1 ? 'map-reduce' : 'single-pass';
   // auto: map-reduce when the diff is large + multi-file, or wouldn't fit the model.
-  const totalLines = diff.files.reduce((n, f) => n + f.additions + f.deletions, 0);
-  const large = totalLines > threshold && diff.files.length > 1;
   return large || tooBigForModel(diff, modelContextLength) ? 'map-reduce' : 'single-pass';
 }
 
@@ -208,9 +245,12 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   let tokensOut = 0;
   let costUsd: number | null = 0;
   const raws: string[] = [];
+  let failedChunks = 0;
 
-  for (const chunk of chunks) {
+  const reviewChunk = async (chunk: { label: string; diffText: string }): Promise<void> => {
     // Cancellation checkpoint — stop before the next (expensive) LLM call.
+    // Kept OUTSIDE the try/catch below: a cancellation must propagate and
+    // abort the run, not be swallowed as "this chunk failed."
     input.checkCancelled?.();
     // 'map:' prefix only for the map-reduce path (one call per file). In
     // single-pass there is exactly one chunk (the whole diff) — don't mislabel it.
@@ -221,20 +261,44 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     );
     const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
     if (mode === 'single-pass') assembly = a.assembly;
-    const res = await input.llm.completeStructured<Review>({
-      model: input.model,
-      schema: ReviewSchema,
-      schemaName: 'Review',
-      messages: a.messages,
-      maxRetries,
-      ...(input.sessionId ? { sessionId: input.sessionId } : {}),
-    });
-    tokensIn += res.tokensIn;
-    tokensOut += res.tokensOut;
-    costUsd = costUsd == null || res.costUsd == null ? null : costUsd + res.costUsd;
-    raws.push(res.raw);
-    partials.push(res.data);
-    emit('result', `${chunk.label}: ${res.data.findings.length} candidate finding(s)`);
+    try {
+      const res = await input.llm.completeStructured<Review>({
+        model: input.model,
+        schema: ReviewSchema,
+        schemaName: 'Review',
+        messages: a.messages,
+        maxRetries,
+        ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+      });
+      tokensIn += res.tokensIn;
+      tokensOut += res.tokensOut;
+      costUsd = costUsd == null || res.costUsd == null ? null : costUsd + res.costUsd;
+      raws.push(res.raw);
+      partials.push(res.data);
+      emit('result', `${chunk.label}: ${res.data.findings.length} candidate finding(s)`);
+    } catch (err) {
+      // In single-pass mode this IS the whole review — nothing to isolate
+      // it from, so a failure here must still fail the run like before.
+      if (mode === 'single-pass') throw err;
+      // Map-reduce: one malformed/truncated/transiently-erroring chunk must
+      // not sink the other N-1 successful chunks (seen live: a single
+      // markdown file broke structured-output validation and failed an
+      // otherwise-clean 183-file map-reduce review outright). Skip it and
+      // keep going; if EVERY chunk fails, reduceReviews below degrades to an
+      // empty, non-blocking review rather than throwing.
+      failedChunks++;
+      emit('error', `${chunk.label}: review failed — ${(err as Error).message}`);
+    }
+  };
+
+  if (mode === 'map-reduce') {
+    await mapWithConcurrency(chunks, MAP_REDUCE_CONCURRENCY, reviewChunk);
+  } else {
+    await reviewChunk(chunks[0]!);
+  }
+
+  if (failedChunks > 0) {
+    emit('info', `${failedChunks}/${chunks.length} chunk(s) failed and were skipped`);
   }
 
   const merged = reduceReviews(partials);
