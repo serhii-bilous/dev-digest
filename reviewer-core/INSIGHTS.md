@@ -90,3 +90,20 @@ _None yet._
   verification would need to diff the model's quoted excerpt against the
   actual hunk text. Not fixed — `grounding.ts`'s citation gate is
   do-not-touch without sign-off (`reviewer-core/CLAUDE.md`).
+  - **2026-08-21** — Same gap, worse outcome, stronger model: switching the
+    Security Reviewer to `anthropic/claude-haiku-4.5` (from the flash-lite
+    default) didn't close this — it used the extra capability to construct a
+    `kind: 'lethal_trifecta'` finding that survived `hasCompleteTrifectaEvidence`
+    entirely, citing `reviewer-core/INSIGHTS.md:41-92` (this very entry,
+    describing the flash-lite hallucination above) as the "vulnerability."
+    Every cited `file:line` was real, so citation-only grounding had nothing
+    to reject. The actual defect: grounding never asks whether the CITED FILE
+    is even the kind of artifact `lethal_trifecta` can apply to — a `.md`
+    doc has no untrusted-input path, no private-data access, and no exfil
+    path; it cannot structurally satisfy the pattern regardless of what text
+    it contains. A cheap content-blind mitigation matching this specific
+    case: exclude non-source paths (`.md`, `.json`, migration SQL) from
+    `FULL_FILE_KINDS` eligibility in `grounding.ts`, or require at least one
+    evidence entry per trifecta claim to fall in a file with an extension the
+    system actually executes/serves. Not implemented — same do-not-touch
+    constraint as above.
