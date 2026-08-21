@@ -1,12 +1,11 @@
 import PQueue from 'p-queue';
 import type { Container } from '../../platform/container.js';
-import type { LLMProvider, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers, severityCounts } from '@devdigest/reviewer-core';
 import { RunLogger, type PinoLike } from '../../platform/run-logger.js';
 import type * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
-import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine, toSkillPromptBlock } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 import { resolveEnabledSkills } from '../agents/helpers.js';
@@ -121,13 +120,10 @@ export class ReviewRunExecutor {
     // Queued agents are independent reviews (different agent, own runId, own
     // trace) — running them one after another serialized total wall time to
     // N × (one agent's review time) for no reason. Run them concurrently, but
-    // bounded: each agent's own map-reduce path can itself fan out up to
-    // MAP_REDUCE_CONCURRENCY (8) concurrent LLM calls, and each holds a DB
-    // connection across its persist transaction — an unbounded Promise.all
-    // over jobs.length agents (a workspace can enable more than the 4
-    // built-ins) would let concurrent agent runs pile onto the connection
-    // pool (10 by default) with no backpressure. Bounded the same way
-    // reviewer-core bounds map-reduce chunks.
+    // bounded: each holds a DB connection across its persist transaction, so
+    // an unbounded Promise.all over jobs.length agents (a workspace can
+    // enable more than the 4 built-ins) would let concurrent agent runs pile
+    // onto the connection pool (10 by default) with no backpressure.
     const queue = new PQueue({ concurrency: AGENT_CONCURRENCY });
     await queue.addAll(
       jobs.map(({ agent, runId }) => async () => {
@@ -189,14 +185,6 @@ export class ReviewRunExecutor {
         { kind: 'tool' },
       );
 
-      // Best-effort: look up the target model's context window so a
-      // single-pass agent can fall back to map-reduce instead of failing
-      // outright on a diff too large for that model. A catalog-fetch failure
-      // (or the model not being in it) must never break the run — it just
-      // means selectMode() respects the configured strategy exactly, same as
-      // before this lookup existed.
-      const modelContextLength = await this.resolveModelContextLength(llm, agent.model, runLog);
-
       // Per-agent repo-intel toggle (Agent editor). When an agent opts out we
       // skip all enrichment entirely so its prompt is identical to the
       // repo-intel-off baseline — independent of the global REPO_INTEL_ENABLED
@@ -240,9 +228,6 @@ export class ReviewRunExecutor {
         model: agent.model,
         diff,
         llm,
-        // Per-agent review strategy (configured in the Agent editor); falls back
-        // to the studio default. single-pass = whole diff in one call.
-        strategy: agent.strategy ?? REVIEW_STRATEGY,
         // Linked skills, already rendered as `### name` blocks. Omitted entirely
         // when the agent has none.
         ...(skillBlocks.length > 0 ? { skills: skillBlocks } : {}),
@@ -260,7 +245,6 @@ export class ReviewRunExecutor {
         // Stated PR intent/scope digest, when computed. Same omit-when-empty
         // contract as the other digests.
         ...(intentDigest ? { intent: intentDigest } : {}),
-        ...(modelContextLength ? { modelContextLength } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -342,12 +326,7 @@ export class ReviewRunExecutor {
           grounding,
         },
         prompt_assembly: outcome.assembly,
-        tool_calls: outcome.chunks.map((c) => ({
-          tool: 'review_file',
-          args: c.label,
-          meta: outcome.mode,
-          ms: Math.round(durationMs / Math.max(outcome.chunks.length, 1)),
-        })),
+        tool_calls: [{ tool: 'review_file', args: 'all files', meta: 'single-pass', ms: durationMs }],
         raw_output: outcome.raw,
         memory_pulled: [],
         specs_read: [],
@@ -385,28 +364,6 @@ export class ReviewRunExecutor {
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
-    }
-  }
-
-  /**
-   * The target model's context window (tokens), from the provider's model
-   * catalog — feeds `reviewPullRequest`'s single-pass → map-reduce context
-   * fallback. Best-effort and silent: `listModels()` is a live catalog fetch
-   * for some providers (e.g. OpenRouter), so a network hiccup or an unlisted
-   * model must degrade to "unknown" (undefined), not fail the run.
-   */
-  private async resolveModelContextLength(
-    llm: LLMProvider,
-    model: string,
-    runLog: RunLogger,
-  ): Promise<number | undefined> {
-    try {
-      const models = await llm.listModels();
-      const found = models.find((m) => m.id === model)?.contextLength;
-      return found ?? undefined;
-    } catch (err) {
-      runLog.info(`model context length: lookup failed — ${(err as Error).message}`);
-      return undefined;
     }
   }
 

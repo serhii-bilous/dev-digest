@@ -140,6 +140,10 @@ input but left responses unchecked, so contract drift surfaced in the browser.
   will recur with any model; verify "no evidence of X" findings across the
   WHOLE diff (`grep` the other changed files) before trusting them, especially
   for type/signature-propagation changes that necessarily span files.
+  **Resolved 2026-08-21: map-reduce chunking was removed** (see
+  `reviewer-core/INSIGHTS.md`'s "Removed map-reduce chunking" decision) —
+  every review is single-pass now, so there is no chunk boundary left to
+  create this blind spot. Kept here as a reminder of WHY it was removed.
 
 - **2026-08-21** — A "race condition" finding on `Promise.all()`-parallelized
   Node code needs verification against the single-threaded execution model,

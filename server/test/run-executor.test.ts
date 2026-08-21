@@ -316,8 +316,7 @@ describe('ReviewRunExecutor.executeRuns — PQueue concurrency bound is actually
     // isolated) proves the queue doesn't deadlock or drop jobs — it does NOT
     // prove the queue is actually bounded, since an unbounded Promise.all
     // would pass that same assertion just as well. This test tracks peak
-    // in-flight LLM calls directly, the same technique reviewer-core's
-    // mapWithConcurrency test uses for its own bound.
+    // in-flight LLM calls directly.
     const getIntent = vi.fn().mockResolvedValue(undefined);
     const repo = buildFakeRepo(getIntent);
     const runBus = new RunBus();
