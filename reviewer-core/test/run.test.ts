@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { LLMProvider, StructuredResult, UnifiedDiff } from '@devdigest/shared';
 import { MockLLMProvider, MockGitClient } from '../../server/src/adapters/mocks.js';
 import { reviewPullRequest } from '../src/index.js';
+import { MAP_REDUCE_CONCURRENCY } from '../src/review/run.js';
 
 /** A synthetic multi-file diff whose `raw` text is big enough to exceed a
  *  small `modelContextLength` at the engine's conservative ~3-chars/token
@@ -127,6 +128,31 @@ describe('reviewPullRequest (engine)', () => {
         },
       }),
     ).rejects.toThrow('cancelled');
+  });
+
+  it('map-reduce mode: checkCancelled still fires per-chunk when chunks run concurrently', async () => {
+    // Same intent as "checkCancelled throwing aborts before the LLM call"
+    // above, but for the concurrent map-reduce path (mapWithConcurrency) —
+    // the checkpoint lives inside reviewChunk, called once per chunk, and
+    // must still abort the whole run even though chunks are in flight
+    // together rather than strictly serially.
+    const clean = { verdict: 'approve', summary: 'ok', score: 100, findings: [] };
+    const llm = new MockLLMProvider('openai', { structured: clean });
+    const diff = bigDiff(3, 100);
+    let calls = 0;
+    await expect(
+      reviewPullRequest({
+        systemPrompt: 's',
+        model: 'm',
+        diff,
+        llm,
+        strategy: 'map-reduce',
+        checkCancelled: () => {
+          calls++;
+          if (calls === 2) throw new Error('cancelled mid map-reduce');
+        },
+      }),
+    ).rejects.toThrow('cancelled mid map-reduce');
   });
 
   it('forwards sessionId to every LLM call (OpenRouter session grouping)', async () => {
@@ -352,6 +378,116 @@ describe('reviewPullRequest (engine)', () => {
           strategy: 'map-reduce',
         }),
       ).rejects.toThrow('All 2 map-reduce chunk(s) failed');
+    });
+  });
+
+  describe('mapWithConcurrency bound (via reviewPullRequest map-reduce)', () => {
+    it('never runs more than MAP_REDUCE_CONCURRENCY LLM calls at once, and still reviews every file', async () => {
+      const clean = { verdict: 'approve', summary: 'ok', score: 100, findings: [] };
+      const fileCount = 10; // > MAP_REDUCE_CONCURRENCY (8)
+      const diff = bigDiff(fileCount, 30); // small padding — only file COUNT matters here
+
+      let inFlight = 0;
+      let maxInFlight = 0;
+      const tracking: LLMProvider = {
+        id: 'openrouter',
+        async completeStructured<T>(req): Promise<StructuredResult<T>> {
+          inFlight++;
+          maxInFlight = Math.max(maxInFlight, inFlight);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          inFlight--;
+          return {
+            data: clean as unknown as T,
+            model: req.model,
+            tokensIn: 0,
+            tokensOut: 0,
+            costUsd: 0,
+            raw: '',
+            attempts: 1,
+          };
+        },
+        async listModels() {
+          return [];
+        },
+        async complete() {
+          throw new Error('not used');
+        },
+        async embed() {
+          return [];
+        },
+      };
+
+      const outcome = await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'm',
+        diff,
+        llm: tracking,
+        strategy: 'map-reduce',
+      });
+
+      expect(maxInFlight).toBeLessThanOrEqual(MAP_REDUCE_CONCURRENCY);
+      // With 10 files and a limit of 8, the bound should actually be reached
+      // (not accidentally serialized) — asserts the pool is bounded, not zero.
+      expect(maxInFlight).toBe(MAP_REDUCE_CONCURRENCY);
+      expect(outcome.chunks).toHaveLength(fileCount);
+      expect(outcome.review.verdict).toBe('approve');
+    });
+  });
+
+  describe('isLargeDiff threshold boundary (via reviewPullRequest strategy: auto)', () => {
+    const clean = { verdict: 'approve', summary: 'ok', score: 100, findings: [] };
+
+    /** A multi-file diff with a precisely controlled total additions+deletions count. */
+    function preciseDiff(fileLineCounts: number[]): UnifiedDiff {
+      const files = fileLineCounts.map((n, i) => ({
+        path: `src/f${i}.ts`,
+        additions: n,
+        deletions: 0,
+        hunks: [
+          {
+            file: `src/f${i}.ts`,
+            oldStart: 1,
+            oldLines: 0,
+            newStart: 1,
+            newLines: n,
+            newLineNumbers: Array.from({ length: n }, (_, k) => k + 1),
+          },
+        ],
+      }));
+      const raw = files.map((f) => `diff --git a/${f.path} b/${f.path}\n`).join('\n');
+      return { raw, files };
+    }
+
+    it('total lines exactly AT the threshold stays single-pass (isLargeDiff requires strictly >)', async () => {
+      const llm = new MockLLMProvider('openai', { structured: clean });
+      const diff = preciseDiff([5, 5]); // total = 10 = threshold
+
+      const outcome = await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'm',
+        diff,
+        llm,
+        strategy: 'auto',
+        mapThresholdLines: 10,
+      });
+
+      expect(outcome.mode).toBe('single-pass');
+    });
+
+    it('total lines one over the threshold resolves to map-reduce', async () => {
+      const llm = new MockLLMProvider('openai', { structured: clean });
+      const diff = preciseDiff([5, 6]); // total = 11 > threshold
+
+      const outcome = await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'm',
+        diff,
+        llm,
+        strategy: 'auto',
+        mapThresholdLines: 10,
+      });
+
+      expect(outcome.mode).toBe('map-reduce');
     });
   });
 });
