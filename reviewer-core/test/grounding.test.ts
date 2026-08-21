@@ -163,6 +163,34 @@ describe('hasCompleteTrifectaEvidence (via groundFindings) — component mismatc
   });
 });
 
+describe('hasCompleteTrifectaEvidence (via groundFindings) — over-broad evidence', () => {
+  const diff = diffFixture();
+
+  it('keeps a claim that declares fewer components but has real evidence covering all of them', () => {
+    // Only 2 of the 3 canonical components are DECLARED, but evidence is
+    // provided for all 3 (untrusted_input, private_data_access, exfil_path).
+    // hasCompleteTrifectaEvidence only requires every DECLARED component to
+    // have a verified entry — it does not require evidence to be limited to
+    // exactly the declared set. Extra, unused evidence entries are harmless:
+    // this asserts that intentionally, so a future tightening of the check
+    // (e.g. requiring evidence keys === declared components) is a deliberate
+    // choice, not an accidental regression.
+    const finding = f({
+      kind: 'lethal_trifecta',
+      confidence: 0.9,
+      trifecta_components: ['untrusted_input', 'private_data_access'],
+      evidence: [
+        { component: 'untrusted_input', file: 'src/config.ts', line: 11 },
+        { component: 'private_data_access', file: 'src/api/users.ts', line: 45 },
+        { component: 'exfil_path', file: 'src/api/users.ts', line: 46 },
+      ],
+    });
+    const res = groundFindings([finding], diff);
+    expect(res.kept).toHaveLength(1);
+    expect(res.dropped).toHaveLength(0);
+  });
+});
+
 describe('groundingSummary', () => {
   it('reports kept/total across confidence and trifecta drops', () => {
     const diff = diffFixture();

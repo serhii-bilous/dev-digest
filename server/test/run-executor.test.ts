@@ -309,3 +309,64 @@ describe('ReviewRunExecutor.executeRuns — empty jobs array', () => {
     expect(repo.insertReview).not.toHaveBeenCalled();
   });
 });
+
+describe('ReviewRunExecutor.executeRuns — PQueue concurrency bound is actually enforced', () => {
+  it('never runs more than AGENT_CONCURRENCY agents at once', async () => {
+    // The isolation test above (N > AGENT_CONCURRENCY completes, one failure
+    // isolated) proves the queue doesn't deadlock or drop jobs — it does NOT
+    // prove the queue is actually bounded, since an unbounded Promise.all
+    // would pass that same assertion just as well. This test tracks peak
+    // in-flight LLM calls directly, the same technique reviewer-core's
+    // mapWithConcurrency test uses for its own bound.
+    const getIntent = vi.fn().mockResolvedValue(undefined);
+    const repo = buildFakeRepo(getIntent);
+    const runBus = new RunBus();
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const tracking: LLMProvider = {
+      id: 'openai',
+      async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        inFlight--;
+        return {
+          data: REVIEW_FIXTURE as unknown as T,
+          model: req.model,
+          tokensIn: 0,
+          tokensOut: 0,
+          costUsd: 0,
+          raw: '',
+          attempts: 1,
+        };
+      },
+      async listModels() {
+        return [];
+      },
+      async complete() {
+        throw new Error('not used');
+      },
+      async embed() {
+        return [];
+      },
+    };
+
+    const container = buildContainerWithLLM(tracking, runBus);
+    const executor = new ReviewRunExecutor(container, repo, container.agentsRepo);
+
+    const jobCount = AGENT_CONCURRENCY + 4; // comfortably over the bound
+    const jobs = Array.from({ length: jobCount }, (_, i) => ({
+      agent: fakeAgent(`agent-${i + 1}`, `Agent ${i + 1}`),
+      runId: `run-${i + 1}`,
+    }));
+
+    await executor.executeRuns('ws-1', fakePull(), fakeRepoRow(), jobs);
+
+    expect(maxInFlight).toBeLessThanOrEqual(AGENT_CONCURRENCY);
+    // With more jobs than the bound, the bound should actually be reached —
+    // not accidentally serialized down to 1.
+    expect(maxInFlight).toBe(AGENT_CONCURRENCY);
+    expect(repo.insertReview).toHaveBeenCalledTimes(jobCount);
+  });
+});

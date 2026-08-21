@@ -155,6 +155,43 @@ describe('reviewPullRequest (engine)', () => {
     ).rejects.toThrow('cancelled mid map-reduce');
   });
 
+  it('map-reduce mode: an in-flight worker whose checkCancelled did not throw still completes its own chunk (cancellation does not abort siblings mid-item)', async () => {
+    // One diff with exactly MAP_REDUCE_CONCURRENCY files, so ALL chunks start
+    // as their own worker in the same synchronous burst (mapWithConcurrency
+    // creates min(limit, items.length) workers up front) — checkCancelled
+    // throwing on the FIRST call only blocks the worker that made that call;
+    // it has no way to reach into the other, already-created workers and stop
+    // them, since there is no AbortController wiring, only a per-item check.
+    // This documents the actual (if unintuitive) behavior: cancellation
+    // requested is not cancellation-of-everything-immediately — fewer than
+    // all chunks are attempted, but not zero, and which ones is scheduling-
+    // order dependent (here, deterministic because the mock resolves with no
+    // artificial delay).
+    const clean = { verdict: 'approve', summary: 'ok', score: 100, findings: [] };
+    const llm = new MockLLMProvider('openai', { structured: clean });
+    const diff = bigDiff(MAP_REDUCE_CONCURRENCY, 30);
+
+    let checks = 0;
+    await expect(
+      reviewPullRequest({
+        systemPrompt: 's',
+        model: 'm',
+        diff,
+        llm,
+        strategy: 'map-reduce',
+        checkCancelled: () => {
+          checks++;
+          if (checks === 1) throw new Error('cancelled on first chunk');
+        },
+      }),
+    ).rejects.toThrow('cancelled on first chunk');
+
+    // The one worker whose checkCancelled call landed first never reached the
+    // LLM; every other worker (already created in the same synchronous burst)
+    // had nothing telling it to stop, so it completed its own chunk normally.
+    expect(llm.calls.length).toBe(MAP_REDUCE_CONCURRENCY - 1);
+  });
+
   it('forwards sessionId to every LLM call (OpenRouter session grouping)', async () => {
     const seen: (string | undefined)[] = [];
     const recorder: LLMProvider = {
