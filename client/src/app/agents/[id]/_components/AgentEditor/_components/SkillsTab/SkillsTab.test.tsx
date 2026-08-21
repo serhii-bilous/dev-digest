@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import type { Skill, AgentSkillLink } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/agents.json";
 
-const SKILLS: Skill[] = [
+let SKILLS: Skill[] = [
   { id: "s1", name: "no-then-chains", description: "x", type: "convention", source: "manual", body: "b", enabled: true, version: 1 },
   { id: "s2", name: "secret-leakage-gate", description: "x", type: "security", source: "manual", body: "b", enabled: true, version: 1 },
 ];
@@ -12,8 +12,8 @@ const SKILLS: Skill[] = [
 // Both attached, s1 first (order 0), s2 second (order 1) — lets a reorder test
 // move s1 down / s2 up.
 let LINKS: AgentSkillLink[] = [
-  { agent_id: "ag1", skill_id: "s1", order: 0 },
-  { agent_id: "ag1", skill_id: "s2", order: 1 },
+  { agent_id: "ag1", skill_id: "s1", order: 0, enabled: true },
+  { agent_id: "ag1", skill_id: "s2", order: 1, enabled: true },
 ];
 
 const setSkillsMutate = vi.fn();
@@ -30,9 +30,13 @@ import { SkillsTab } from "./SkillsTab";
 afterEach(cleanup);
 beforeEach(() => {
   setSkillsMutate.mockClear();
+  SKILLS = [
+    { id: "s1", name: "no-then-chains", description: "x", type: "convention", source: "manual", body: "b", enabled: true, version: 1 },
+    { id: "s2", name: "secret-leakage-gate", description: "x", type: "security", source: "manual", body: "b", enabled: true, version: 1 },
+  ];
   LINKS = [
-    { agent_id: "ag1", skill_id: "s1", order: 0 },
-    { agent_id: "ag1", skill_id: "s2", order: 1 },
+    { agent_id: "ag1", skill_id: "s1", order: 0, enabled: true },
+    { agent_id: "ag1", skill_id: "s2", order: 1, enabled: true },
   ];
 });
 
@@ -75,5 +79,81 @@ describe("SkillsTab (smoke)", () => {
     const downButtons = screen.getAllByLabelText("Move down");
     fireEvent.click(downButtons[0]!); // move s1 (order 0) down past s2
     expect(setSkillsMutate).toHaveBeenCalledWith({ agentId: "ag1", skillIds: ["s2", "s1"] });
+  });
+
+  it("filtering to a term that matches nothing shows the empty state instead of the list", () => {
+    renderWithIntl(<SkillsTab agentId="ag1" />);
+    fireEvent.change(screen.getByPlaceholderText("Filter skills…"), { target: { value: "zzz-no-match" } });
+    expect(screen.getByText("No skills match. Create or import one from the Skills page.")).toBeInTheDocument();
+    expect(screen.queryByText("no-then-chains")).not.toBeInTheDocument();
+    expect(screen.queryByText("secret-leakage-gate")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+  });
+
+  it("dragging a skill's handle onto another row's drop zone reorders the linked set", () => {
+    renderWithIntl(<SkillsTab agentId="ag1" />);
+    const handles = screen.getAllByLabelText("Drag to reorder");
+    // The row (which owns onDragOver/onDrop) is the drag handle's parent element.
+    const s2Row = screen.getByText("secret-leakage-gate").parentElement!;
+    const dataTransfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+
+    fireEvent.dragStart(handles[0]!, { dataTransfer }); // pick up s1
+    fireEvent.dragOver(s2Row, { dataTransfer, clientY: 0 }); // hover over s2's row
+    fireEvent.drop(s2Row, { dataTransfer }); // drop onto s2
+
+    expect(setSkillsMutate).toHaveBeenCalledWith({ agentId: "ag1", skillIds: ["s2", "s1"] });
+  });
+
+  it("Move Up on the first attached skill and Move Down on the last are disabled no-ops", () => {
+    renderWithIntl(<SkillsTab agentId="ag1" />);
+    const upButtons = screen.getAllByLabelText("Move up");
+    const downButtons = screen.getAllByLabelText("Move down");
+    expect(upButtons[0]).toBeDisabled(); // s1 is first — nothing above it
+    expect(downButtons[1]).toBeDisabled(); // s2 is last — nothing below it
+
+    fireEvent.click(upButtons[0]!);
+    fireEvent.click(downButtons[1]!);
+
+    expect(setSkillsMutate).not.toHaveBeenCalled();
+  });
+
+  it("dropping a skill onto its own row is a no-op", () => {
+    renderWithIntl(<SkillsTab agentId="ag1" />);
+    const handles = screen.getAllByLabelText("Drag to reorder");
+    const s1Row = screen.getByText("no-then-chains").parentElement!;
+    const dataTransfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+
+    fireEvent.dragStart(handles[0]!, { dataTransfer }); // pick up s1
+    fireEvent.dragOver(s1Row, { dataTransfer, clientY: 0 }); // hover over its own row
+    fireEvent.drop(s1Row, { dataTransfer });
+
+    expect(setSkillsMutate).not.toHaveBeenCalled();
+  });
+
+  it("dropping before a target places the dragged skill ahead of it, not just after", () => {
+    SKILLS = [
+      ...SKILLS,
+      { id: "s3", name: "third-skill", description: "x", type: "convention", source: "manual", body: "b", enabled: true, version: 1 },
+    ];
+    LINKS = [
+      { agent_id: "ag1", skill_id: "s1", order: 0, enabled: true },
+      { agent_id: "ag1", skill_id: "s2", order: 1, enabled: true },
+      { agent_id: "ag1", skill_id: "s3", order: 2, enabled: true },
+    ];
+    renderWithIntl(<SkillsTab agentId="ag1" />);
+    const handles = screen.getAllByLabelText("Drag to reorder");
+    const s2Row = screen.getByText("secret-leakage-gate").parentElement!;
+    const dataTransfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+
+    // drag s3 (last) and drop it BEFORE s2 (negative clientY -> "before" half of the row).
+    // jsdom's DragEvent doesn't carry clientY through fireEvent's init dict (it's a
+    // MouseEvent-only field), so build the event by hand and set it directly.
+    fireEvent.dragStart(handles[2]!, { dataTransfer });
+    const dragOverEvent = new Event("dragover", { bubbles: true, cancelable: true }) as unknown as DragEvent;
+    Object.assign(dragOverEvent, { dataTransfer, clientY: -1 });
+    fireEvent(s2Row, dragOverEvent);
+    fireEvent.drop(s2Row, { dataTransfer });
+
+    expect(setSkillsMutate).toHaveBeenCalledWith({ agentId: "ag1", skillIds: ["s1", "s3", "s2"] });
   });
 });

@@ -5,7 +5,13 @@ import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import { FindingCard } from "./FindingCard";
 
-afterEach(cleanup);
+// jsdom doesn't implement scrollIntoView — the nav-target effect calls it.
+Element.prototype.scrollIntoView = vi.fn();
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const FINDING: FindingRecord = {
   id: "f1",
@@ -56,5 +62,21 @@ describe("FindingCard (smoke, both themes)", () => {
     expect(onAction).toHaveBeenCalledWith("accept");
     fireEvent.click(screen.getByText("Dismiss"));
     expect(onAction).toHaveBeenCalledWith("dismiss");
+  });
+
+  it("force-expands and scrolls into view when it becomes the nav target, even if collapsed by default", () => {
+    renderWithIntl(
+      <FindingCard f={FINDING} defaultExpanded={false} onAction={() => {}} targetFindingId="f1" targetNonce={1} />,
+    );
+    // "Suggested fix" only renders once expanded.
+    expect(screen.getByText("Suggested fix")).toBeInTheDocument();
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("stays collapsed when targetFindingId points at a different finding", () => {
+    renderWithIntl(
+      <FindingCard f={FINDING} defaultExpanded={false} onAction={() => {}} targetFindingId="other" targetNonce={1} />,
+    );
+    expect(screen.queryByText("Suggested fix")).not.toBeInTheDocument();
   });
 });

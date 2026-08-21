@@ -103,6 +103,7 @@
       "updated": "Updated"
     },
     "filesCount": "{count} files",
+    "findingsPreviewTitle": "{count} findings",
     "errorTitle": "Couldn’t load pull requests",
     "errorBody": "The engine returned an error.",
     "emptyTitle": "No pull requests",
@@ -123,5 +124,28 @@
       "loading": "Loading findings…",
       "empty": "No findings in this run"
     }
+  },
+  "intent": {
+    "sectionLabel": "Intent",
+    "empty": {
+      "body": "No intent has been derived for this PR yet — generate a short summary of what it's trying to do and its scope.",
+      "cta": "Derive intent"
+    },
+    "deriving": "Deriving…",
+    "recompute": "Recompute",
+    "inScope": "In scope",
+    "outOfScope": "Out of scope",
+    "computedAt": "Derived {time}",
+    "riskAreas": {
+      "sectionLabel": "Risk areas",
+      "empty": "No notable risks flagged."
+    }
+  },
+  "blastRadius": {
+    "sectionLabel": "Blast radius",
+    "comingSoon": "Coming soon — downstream callers, endpoints, and cron jobs touched by this PR."
+  },
+  "prBrief": {
+    "sectionLabel": "PR Brief"
   }
 }

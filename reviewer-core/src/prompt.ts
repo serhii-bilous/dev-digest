@@ -33,6 +33,15 @@ export function wrapUntrusted(label: string, content: string): string {
   return `<untrusted source="${label}">\n${safe}\n</untrusted>`;
 }
 
+// Trusted boilerplate prefacing the `## Stated PR intent` section: tells the
+// reviewing agent how to treat the (untrusted) intent/scope text that follows
+// it — bound its attention, not descope the review (that guarantee is still
+// INJECTION_GUARD's job).
+const INTENT_SCOPE_RULE =
+  'The following is the PR author\'s stated intent/scope. Do not comment on issues outside ' +
+  'this stated scope. If a serious problem exists outside the stated scope, raise it as a ' +
+  'single flag/signal rather than as many separate findings.';
+
 /** Cap the PR description so a huge author body can't blow the token budget. */
 const MAX_PR_DESCRIPTION_CHARS = 4000;
 
@@ -70,6 +79,14 @@ export interface PromptParts {
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
   task?: string;
+  /**
+   * Stated PR intent/scope (untrusted — author/caller-provided; a pre-formatted
+   * plain-text string, mirroring `callers`/`repoMap`). Rendered after
+   * `## PR description` and before the skills/rules section, prefaced by the
+   * trusted `INTENT_SCOPE_RULE` telling the reviewer to respect that scope.
+   * Empty/undefined → section omitted (no behavior change).
+   */
+  intent?: string;
 }
 
 export interface AssembledPrompt {
@@ -106,6 +123,11 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   if (prDescription) {
     userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
   }
+  if (parts.intent && parts.intent.trim().length > 0) {
+    userSections.push(
+      `## Stated PR intent\n${INTENT_SCOPE_RULE}\n${wrapUntrusted('intent', parts.intent)}`,
+    );
+  }
   if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
   if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
   if (parts.repoMap && parts.repoMap.trim().length > 0) {
@@ -132,6 +154,7 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
     memory: memoryBlock ?? null,
     specs: specsBlock ?? null,
     callers: parts.callers ?? null,
+    intent: parts.intent ?? null,
     repo_map: parts.repoMap ?? null,
     pr_description: prDescription ?? null,
     user,

@@ -1,12 +1,14 @@
-import { z } from 'zod';
+import type { z } from 'zod';
 import { zodResponseFormat } from 'openai/helpers/zod';
 
 /**
- * structured-output helpers shared by both LLM providers.
+ * structured-output helpers shared by all LLM providers.
  *
  * - `toJsonSchema` converts a Zod schema to a JSON Schema (draft-07, strict
  *   object) by reusing OpenAI's bundled converter — used for OpenAI's
- *   `response_format: json_schema` AND Anthropic forced tool-use `input_schema`.
+ *   `response_format: json_schema`, Anthropic forced tool-use `input_schema`,
+ *   AND OpenRouter's pass-through `response_format` (which forwards the
+ *   schema unmodified to whichever backend it routes to).
  * - `parseWithRepair` validates raw model text against the Zod schema and, on
  *   failure, returns a reprompt instruction so the caller can retry-on-error.
  */
@@ -16,9 +18,54 @@ export interface JsonSchema {
   name: string;
 }
 
+/**
+ * Inline every `$ref` against the schema's own `definitions` block and drop
+ * `definitions` from the result, so the returned schema is fully self-
+ * contained. `zodResponseFormat` hoists any Zod schema object reused in more
+ * than one place (e.g. an enum referenced from two different fields) into
+ * `definitions` and points at it via `$ref` — valid JSON Schema, and OpenAI's
+ * own API resolves it fine, but OpenRouter forwards the schema verbatim to
+ * whichever backend it routes a request to, and not every provider's
+ * structured-output/grammar compiler resolves `$ref`/`definitions` (seen in
+ * production: Gemini fails with "reference to undefined schema", Qwen with
+ * "grammar is not valid: failed to compile grammar" — both on the exact same
+ * schema OpenAI and DeepSeek accept without complaint). Inlining removes the
+ * indirection entirely so the schema works the same everywhere.
+ *
+ * `seen` guards against a cycle (a self-referential/recursive Zod schema,
+ * which none of ours are today) — a ref already on the current resolution
+ * path is left as `$ref` rather than expanded infinitely.
+ */
+function inlineRefs(schema: Record<string, unknown>): Record<string, unknown> {
+  const definitions = (schema.definitions ?? {}) as Record<string, unknown>;
+
+  function resolve(node: unknown, seen: ReadonlySet<string>): unknown {
+    if (Array.isArray(node)) return node.map((n) => resolve(n, seen));
+    if (node && typeof node === 'object') {
+      const obj = node as Record<string, unknown>;
+      const ref = obj.$ref;
+      if (typeof ref === 'string' && ref.startsWith('#/definitions/')) {
+        const name = ref.slice('#/definitions/'.length);
+        if (seen.has(name) || !(name in definitions)) return obj; // cyclic or dangling — leave as-is
+        return resolve(definitions[name], new Set([...seen, name]));
+      }
+      const out: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (key === 'definitions') continue; // strip nested definitions blocks too
+        out[key] = resolve(value, seen);
+      }
+      return out;
+    }
+    return node;
+  }
+
+  const { definitions: _drop, ...rest } = schema;
+  return resolve(rest, new Set()) as Record<string, unknown>;
+}
+
 export function toJsonSchema<T>(schema: z.ZodType<T>, name: string): JsonSchema {
   const rf = zodResponseFormat(schema as z.ZodTypeAny, name);
-  return { schema: rf.json_schema.schema as Record<string, unknown>, name };
+  return { schema: inlineRefs(rf.json_schema.schema as Record<string, unknown>), name };
 }
 
 /** Best-effort extraction of a JSON object/array from a model's text output. */

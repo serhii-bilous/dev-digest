@@ -202,6 +202,25 @@ describe("ConventionsView", () => {
     expect(extractMutate).toHaveBeenCalledWith(482);
   });
 
+  it("Deselect all un-accepts every currently-accepted candidate, leaving already-rejected ones untouched", () => {
+    activeRepoState = { repoId: "r1", activeRepo: { full_name: "acme/payments-api" }, reposLoaded: true };
+    conventionsState = {
+      data: {
+        candidates: [CANDIDATE, { ...CANDIDATE, id: "c2", accepted: false }],
+        scan: { sample_file_count: 12, scanned_at: new Date().toISOString(), pull_number: null },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+    renderWithIntl();
+
+    fireEvent.click(screen.getByText("Deselect all"));
+
+    expect(updateMutate).toHaveBeenCalledTimes(1);
+    expect(updateMutate).toHaveBeenCalledWith({ id: "c1", patch: { accepted: false } });
+  });
+
   it("shows the PR-scoped sample summary when the latest scan targeted a PR", () => {
     activeRepoState = { repoId: "r1", activeRepo: { full_name: "acme/payments-api" }, reposLoaded: true };
     pullsState = [PR_482];

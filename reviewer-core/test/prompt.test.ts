@@ -64,3 +64,37 @@ describe('assemblePrompt — ## PR description', () => {
     expect((assembly.pr_description as string).length).toBe(4000);
   });
 });
+
+describe('assemblePrompt — ## Stated PR intent', () => {
+  const INTENT_SCOPE_RULE =
+    "The following is the PR author's stated intent/scope. Do not comment on issues outside " +
+    'this stated scope. If a serious problem exists outside the stated scope, raise it as a ' +
+    'single flag/signal rather than as many separate findings.';
+
+  it('renders the section (scope rule + untrusted-wrapped intent) between PR description and skills', () => {
+    const { messages } = assemblePrompt({
+      system: 'sys',
+      diff: 'DIFF',
+      prDescription: 'Adds rate limiting to the public /api endpoints.',
+      skills: ['SKILL-BODY'],
+      intent: 'Only touch the rate-limiter; do not review unrelated files.',
+    });
+    const user = messages[1]!.content;
+    expect(user).toContain('## Stated PR intent');
+    expect(user).toContain(INTENT_SCOPE_RULE);
+    expect(user).toContain('<untrusted source="intent">');
+    expect(user).toContain('Only touch the rate-limiter; do not review unrelated files.');
+    expect(user.indexOf('## PR description')).toBeLessThan(user.indexOf('## Stated PR intent'));
+    expect(user.indexOf('## Stated PR intent')).toBeLessThan(user.indexOf('## Skills / rules'));
+  });
+
+  it('omits the section when intent is undefined or blank (byte-identical to no intent at all)', () => {
+    const base = userOf({ system: 'sys', diff: 'DIFF', prDescription: 'x' });
+    expect(base).not.toContain('## Stated PR intent');
+    expect(userOf({ system: 'sys', diff: 'DIFF', prDescription: 'x', intent: undefined })).toBe(
+      base,
+    );
+    expect(userOf({ system: 'sys', diff: 'DIFF', prDescription: 'x', intent: '' })).toBe(base);
+    expect(userOf({ system: 'sys', diff: 'DIFF', prDescription: 'x', intent: '   ' })).toBe(base);
+  });
+});

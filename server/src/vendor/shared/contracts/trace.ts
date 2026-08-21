@@ -43,6 +43,8 @@ export const PromptAssembly = z.object({
   specs: z.string().nullish(),
   /** Callers-of-changed-symbols digest (T1.3); null when absent. */
   callers: z.string().nullish(),
+  /** Stated PR intent/scope digest; null when absent. */
+  intent: z.string().nullish(),
   /** Repo skeleton / map (T3); null when absent. Enables per-slot token
       attribution in the run trace. */
   repo_map: z.string().nullish(),
@@ -122,6 +124,11 @@ export const RunSummary = z.object({
   // findings that trip the agent's gate. Null on failed/cancelled runs.
   score: z.number().int().nullable(),
   blockers: z.number().int().nullable(),
+  // Per-severity tally, snapshotted alongside blockers at run completion. Null
+  // on runs from before this field existed, and on failed/cancelled runs.
+  critical_count: z.number().int().nullable(),
+  warning_count: z.number().int().nullable(),
+  suggestion_count: z.number().int().nullable(),
 });
 export type RunSummary = z.infer<typeof RunSummary>;
 

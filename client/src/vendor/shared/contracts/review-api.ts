@@ -56,8 +56,19 @@ export const ReviewRunResponse = z.object({
 });
 export type ReviewRunResponse = z.infer<typeof ReviewRunResponse>;
 
-/** Intent persisted for a PR (the Intent plus the pr_id it scopes). */
-export const PrIntentRecord = Intent.extend({ pr_id: z.string() });
+/**
+ * `GET|POST /pulls/:id/intent`'s response shape: the `Intent` plus the LLM
+ * call metadata that produced it. `computed_at` is an ISO string on the wire
+ * (serialized from a `Date` server-side).
+ */
+export const PrIntentRecord = Intent.extend({
+  computed_at: z.string(),
+  provider: z.string().nullable(),
+  model: z.string().nullable(),
+  tokens_in: z.number().nullable(),
+  tokens_out: z.number().nullable(),
+  cost_usd: z.number().nullable(),
+});
 export type PrIntentRecord = z.infer<typeof PrIntentRecord>;
 
 /** Smart-diff response for a PR (the SmartDiff). */

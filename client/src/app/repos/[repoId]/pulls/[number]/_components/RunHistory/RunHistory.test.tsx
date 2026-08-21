@@ -55,6 +55,9 @@ function run(o: Partial<RunSummary>): RunSummary {
     ran_at: "2026-06-11T18:44:34.000Z",
     score: null,
     blockers: null,
+    critical_count: null,
+    warning_count: null,
+    suggestion_count: null,
     ...o,
   };
 }
@@ -131,5 +134,15 @@ describe("RunHistory — per-severity findings badges", () => {
   it("falls back to the plain-text count when findingsByRun isn't provided at all", () => {
     renderRuns([run({ status: "done", findings_count: 0, blockers: 0 })]);
     expect(screen.getByText(/0 finding/)).toBeInTheDocument();
+  });
+
+  it("renders severity badges without the hover-card wrapper when the run's findings array is empty", () => {
+    // findingsByRun HAS an entry for this run, but it's an empty array — distinct
+    // from "no entry at all" (which falls back to the plain-text count above).
+    const findingsByRun = new Map<string, FindingRecord[]>([["run-1", []]]);
+    renderRuns([run({ status: "done", findings_count: 0, blockers: 0 })], findingsByRun);
+    expect(screen.getByText("None")).toBeInTheDocument();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 finding/)).not.toBeInTheDocument();
   });
 });

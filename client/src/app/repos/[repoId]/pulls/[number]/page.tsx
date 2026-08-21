@@ -69,6 +69,18 @@ export default function PRDetailPage() {
   };
   const setTab = (t: string) => setParam("tab", t);
 
+  // Cross-tab nav: clicking a Smart Diff per-line finding badge (Diff tab)
+  // switches to the Findings tab and scrolls/highlights that finding's card.
+  // DiffTab unmounts on tab switch, so this can't be a direct callback the
+  // way Timeline->Accordion is (both live inside FindingsTab) — it has to be
+  // page-level state, threaded into a freshly-mounted FindingsTab. `n` is a
+  // nonce so re-clicking the same finding still re-triggers the scroll.
+  const [findingTarget, setFindingTarget] = React.useState<{ findingId: string; n: number } | null>(null);
+  const handleFindingClick = (finding: FindingRecord) => {
+    setFindingTarget((p) => ({ findingId: finding.id, n: (p?.n ?? 0) + 1 }));
+    setTab("findings");
+  };
+
   const selectedSeverities = (search.get("severity")?.split(",") ?? []).filter(
     (s): s is Severity => (KNOWN_SEVERITIES as string[]).includes(s),
   );
@@ -76,10 +88,10 @@ export default function PRDetailPage() {
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
-  const allFindings: FindingRecord[] = React.useMemo(
-    () => runs.flatMap((r) => r.findings),
-    [reviews],
-  );
+  // Derived during render, not memoized: a flatMap over a handful of reviews is
+  // cheaper than the memo bookkeeping, and the previous useMemo listed `reviews`
+  // as its dependency while reading `runs`.
+  const allFindings: FindingRecord[] = runs.flatMap((r) => r.findings);
   const lethalTrifecta = allFindings.filter((f) => f.kind === "lethal_trifecta");
   const findingsCount = allFindings.length;
 
@@ -141,7 +153,7 @@ export default function PRDetailPage() {
       />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
-        {tab === "overview" && <OverviewTab prBody={pr.body} />}
+        {tab === "overview" && <OverviewTab prBody={pr.body} prId={prId} reviews={reviews} />}
 
         {tab === "findings" && (
           <FindingsTab
@@ -156,6 +168,8 @@ export default function PRDetailPage() {
             headSha={pr.head_sha}
             selectedSeverities={selectedSeverities}
             onSelectedSeveritiesChange={setSeverities}
+            targetFindingId={findingTarget?.findingId ?? null}
+            targetFindingNonce={findingTarget?.n ?? 0}
             cancelMutation={cancel}
             onOpenTrace={(id) => setParam("trace", id)}
             onDelete={(id) => {
@@ -175,7 +189,9 @@ export default function PRDetailPage() {
             prId={prId}
             filesCount={pr.files_count}
             files={pr.files}
+            findings={allFindings}
             canComment={pr.status === "open"}
+            onFindingClick={handleFindingClick}
           />
         )}
       </div>

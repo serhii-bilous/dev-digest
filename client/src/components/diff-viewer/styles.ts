@@ -64,6 +64,22 @@ export const s = {
     color: "var(--text-primary)",
     paddingRight: 12,
   } satisfies CSSProperties,
+  lineFindingTags: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    paddingRight: 12,
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  findingsBadgeBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    background: "none",
+    border: "none",
+    padding: 0,
+    cursor: "pointer",
+  } satisfies CSSProperties,
 } as const;
 
 /** Chevron rotates 90deg when the file card is open. */

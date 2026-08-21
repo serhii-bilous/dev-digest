@@ -2,22 +2,30 @@
 
 import React from "react";
 import { SectionLabel, Button } from "@devdigest/ui";
-import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
-import { usePrComments, useCreatePrComment } from "@/lib/hooks/reviews";
+import { type DiffCommentApi } from "@/components/diff-viewer";
+import { SmartDiffToggle } from "@/components/smart-diff-viewer";
+import { usePrComments, useCreatePrComment, useSmartDiff } from "@/lib/hooks/reviews";
 import { notify } from "@/lib/toast";
-import type { PrFile } from "@devdigest/shared";
+import type { FindingRecord, PrFile } from "@devdigest/shared";
 
 interface DiffTabProps {
   prId: string | null;
   filesCount: number;
   files: PrFile[];
+  /** Every finding across every review on this PR — drives Smart Diff's
+   *  per-file badges (empty before any review has run). */
+  findings: FindingRecord[];
   /** Inline commenting is offered only on open PRs (GitHub rejects otherwise). */
   canComment?: boolean;
+  /** Clicking a Smart Diff per-line finding badge — bubbles up to page-level
+   *  cross-tab navigation to that finding's card in the Findings tab. */
+  onFindingClick?: (finding: FindingRecord) => void;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, findings, canComment, onFindingClick }: DiffTabProps) {
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
+  const { data: smartDiff, isLoading: smartDiffLoading } = useSmartDiff(prId);
   // Comments start hidden so the diff is clean by default — toggle to reveal.
   const [showComments, setShowComments] = React.useState(false);
 
@@ -59,7 +67,14 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
       >
         Files changed · {filesCount} files
       </SectionLabel>
-      <DiffViewer files={files} commenting={commenting} />
+      <SmartDiffToggle
+        smartDiff={smartDiff}
+        isLoading={smartDiffLoading}
+        files={files}
+        findings={findings}
+        commenting={commenting}
+        onFindingClick={onFindingClick}
+      />
     </section>
   );
 }

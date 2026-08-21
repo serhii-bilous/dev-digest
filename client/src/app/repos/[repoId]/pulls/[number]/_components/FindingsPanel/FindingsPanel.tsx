@@ -1,5 +1,5 @@
-/* FindingsPanel — hide-low-confidence + j/k navigation + FindingCard list,
-   wiring the accept/dismiss action hook (A2). */
+/* FindingsPanel — severity counters + hide-low-confidence + j/k navigation +
+   FindingCard list, wiring the accept/dismiss action hook (A2). */
 "use client";
 
 import React from "react";
@@ -20,6 +20,8 @@ export function FindingsPanel({
   headSha,
   selectedSeverities = [],
   onSelectedSeveritiesChange,
+  targetFindingId = null,
+  targetNonce = 0,
 }: {
   findings: FindingRecord[];
   prId: string;
@@ -28,6 +30,11 @@ export function FindingsPanel({
   /** Page-level `?severity=` selection — shared across every run's panel. */
   selectedSeverities?: Severity[];
   onSelectedSeveritiesChange?: (next: Severity[]) => void;
+  /** Set when navigation targets a specific finding (Smart Diff badge click)
+   *  — focuses that card and forces it open/scrolled-to. Silently a no-op if
+   *  the target finding is filtered out of `shown` (hideLow / severity filter). */
+  targetFindingId?: string | null;
+  targetNonce?: number;
 }) {
   const t = useTranslations("prReview");
   const action = useFindingAction();
@@ -38,6 +45,14 @@ export function FindingsPanel({
     () => visibleFindings(findings, hideLow, selectedSeverities),
     [findings, hideLow, selectedSeverities],
   );
+
+  // Smart Diff badge navigation: focus the target finding's card (reuses the
+  // same `focused` highlight j/k nav already drives).
+  React.useEffect(() => {
+    if (!targetFindingId) return;
+    const idx = shown.findIndex((f) => f.id === targetFindingId);
+    if (idx >= 0) setFocusIdx(idx);
+  }, [targetFindingId, targetNonce, shown]);
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {
@@ -81,6 +96,8 @@ export function FindingsPanel({
               pending={action.isPending}
               repoFullName={repoFullName}
               headSha={headSha}
+              targetFindingId={targetFindingId}
+              targetNonce={targetNonce}
               onAction={(act) => action.mutate({ findingId: f.id, action: act, prId })}
             />
           ))

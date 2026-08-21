@@ -1,10 +1,12 @@
 /* FileCard — one collapsible file in the diff: header (path, +/- stat, comment
-   count) and, when open, its parsed lines plus any outdated comments. */
+   count, and — when Smart Diff supplies findings — a findings badge) and, when
+   open, its parsed lines (with inline finding tags) plus any outdated comments. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Icon } from "@devdigest/ui";
+import { Icon, SeverityBadge } from "@devdigest/ui";
+import type { FindingRecord, SmartDiffRole } from "@devdigest/shared";
 import type { PrFile } from "@/lib/types";
 import { AUTO_EXPAND_MAX_LINES } from "../constants";
 import { parsePatch, type Line } from "../helpers";
@@ -18,6 +20,7 @@ import {
 import { s, chevronFor } from "../styles";
 import { CodeLine } from "../CodeLine";
 import { OutdatedComments } from "../OutdatedComments";
+import { countBySeverity, findingsForLine } from "../helpers-findings";
 
 /** Threads anchored to a given parsed line (RIGHT=new, LEFT=old). */
 function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): CommentThread[] {
@@ -30,10 +33,30 @@ function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): Commen
   return out;
 }
 
-export function FileCard({ file, commenting }: { file: PrFile; commenting?: DiffCommentApi }) {
+export function FileCard({
+  file,
+  commenting,
+  role,
+  findings,
+  onFindingClick,
+}: {
+  file: PrFile;
+  commenting?: DiffCommentApi;
+  /** Smart Diff's classification for this file — boilerplate always starts
+   *  collapsed, regardless of size. Undefined outside Smart Diff (flat view). */
+  role?: SmartDiffRole;
+  /** This file's findings (already scoped to it by the caller) — drives the
+   *  header badge and the inline per-line severity tags. */
+  findings?: FindingRecord[];
+  /** Clicking an inline per-line finding badge (Smart Diff) — bubbles up to
+   *  page-level cross-tab navigation to that finding's card. */
+  onFindingClick?: (finding: FindingRecord) => void;
+}) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
-    (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
+    role === "boilerplate"
+      ? false
+      : (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
 
@@ -52,6 +75,31 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
     ? commenting.comments.filter((c) => c.path === file.path).length
     : 0;
 
+  const findingCounts = findings ? countBySeverity(findings) : null;
+  const hasFindings = !!findings && findings.length > 0;
+
+  // Scroll-to-line: clicking the findings badge opens the card (if needed) and
+  // scrolls to its lowest-line finding. `scrollNonce` forces the effect to
+  // re-run even when the target line hasn't changed since the last click.
+  const lineRefs = React.useRef(new Map<number, HTMLDivElement | null>());
+  const [scrollTarget, setScrollTarget] = React.useState<number | null>(null);
+  const [scrollNonce, setScrollNonce] = React.useState(0);
+
+  React.useEffect(() => {
+    if (scrollTarget == null) return;
+    lineRefs.current.get(scrollTarget)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollNonce]);
+
+  const handleBadgeClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!findings || findings.length === 0) return;
+    const lowest = Math.min(...findings.map((f) => f.start_line));
+    setOpen(true);
+    setScrollTarget(lowest);
+    setScrollNonce((n) => n + 1);
+  };
+
   return (
     <div style={s.fileCard}>
       <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
@@ -64,6 +112,21 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
           <span style={s.addText}>+{file.additions}</span>{" "}
           <span style={s.delText}>−{file.deletions}</span>
         </span>
+        {hasFindings && findingCounts && (
+          <button
+            type="button"
+            onClick={handleBadgeClick}
+            title={t("smartDiff.findingsBadgeTitle", { count: findings!.length })}
+            aria-label={t("smartDiff.findingsBadgeTitle", { count: findings!.length })}
+            style={s.findingsBadgeBtn}
+          >
+            {(["CRITICAL", "WARNING", "SUGGESTION"] as const)
+              .filter((sev) => findingCounts[sev] > 0)
+              .map((sev) => (
+                <SeverityBadge key={sev} severity={sev} count={findingCounts[sev]} compact />
+              ))}
+          </button>
+        )}
         {commentCount > 0 && (
           <span
             style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-muted)" }}
@@ -85,6 +148,11 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
                 path={file.path}
                 threads={threadsForLine(ln, matched)}
                 commenting={commenting}
+                lineFindings={findings ? findingsForLine(ln, findings) : undefined}
+                onFindingClick={onFindingClick}
+                registerLineRef={(lineNo, el) => {
+                  lineRefs.current.set(lineNo, el);
+                }}
               />
             ))
           )}

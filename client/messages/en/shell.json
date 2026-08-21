@@ -41,5 +41,18 @@
     "viewOnGitHub": "View on GitHub",
     "postedToGitHub": "Posts to GitHub immediately",
     "outdatedTitle": "{count} comment(s) on older revisions"
+  },
+  "smartDiff": {
+    "title": "Reviewer-ordered diff",
+    "smartOrder": "Smart order",
+    "originalOrder": "Original order",
+    "findingsBadgeTitle": "{count, plural, one {# finding} other {# findings}} — click to jump to it",
+    "lineFindingTitle": "{title} — open in Findings",
+    "filesCount": "{count, plural, one {# file} other {# files}}",
+    "group": {
+      "core": { "label": "Core logic", "description": "The substance of the change — review closely" },
+      "wiring": { "label": "Wiring", "description": "Hooks the core into the app" },
+      "boilerplate": { "label": "Boilerplate", "description": "Lockfiles, generated code, snapshots — skim only" }
+    }
   }
 }

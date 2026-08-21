@@ -1,12 +1,12 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
-import { RunLogger } from '../../platform/run-logger.js';
-import * as schema from '../../db/schema.js';
+import type { LLMProvider, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import { reviewPullRequest, countBlockers, severityCounts } from '@devdigest/reviewer-core';
+import { RunLogger, type PinoLike } from '../../platform/run-logger.js';
+import type * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
-import { taskLine } from './helpers.js';
+import { taskLine, toSkillPromptBlock } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 import { resolveEnabledSkills } from '../agents/helpers.js';
 
@@ -18,13 +18,12 @@ export class RunCancelledError extends Error {
   }
 }
 
-/** Minimal structured logger (pino-compatible: (obj, msg)) for runtime logs. */
-export type Logger = {
-  info: (obj: unknown, msg?: string) => void;
-  warn: (obj: unknown, msg?: string) => void;
-  error: (obj: unknown, msg?: string) => void;
-  debug: (obj: unknown, msg?: string) => void;
-};
+/**
+ * Minimal structured logger (pino-compatible: (obj, msg)) for runtime logs.
+ * Aliased to the platform type so there is one definition, not two identical
+ * ones; kept exported here because callers already import it from this module.
+ */
+export type Logger = PinoLike;
 
 // A reduced "Review per file" — same schema as Review (the model returns a small
 // Review per file; we merge findings + take the worst verdict / mean score).
@@ -106,6 +105,12 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Intent — the PR's stated summary/in-scope/out-of-scope, when it has
+    // been computed. Loaded once here (like diff above) and shared across
+    // every queued agent, not recomputed per agent. Best-effort: never let
+    // this break the run.
+    const intentDigest = await this.buildIntentDigest(pull.id, runLog);
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -113,7 +118,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, intentDigest, agent, runId, runLog);
         logger?.info(
           {
             runId,
@@ -142,6 +147,7 @@ export class ReviewRunExecutor {
     pull: PullRow,
     repo: typeof schema.repos.$inferSelect,
     diff: UnifiedDiff,
+    intentDigest: string | undefined,
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
@@ -162,6 +168,14 @@ export class ReviewRunExecutor {
         () => this.container.llm(agent.provider as Provider),
         { kind: 'tool' },
       );
+
+      // Best-effort: look up the target model's context window so a
+      // single-pass agent can fall back to map-reduce instead of failing
+      // outright on a diff too large for that model. A catalog-fetch failure
+      // (or the model not being in it) must never break the run — it just
+      // means selectMode() respects the configured strategy exactly, same as
+      // before this lookup existed.
+      const modelContextLength = await this.resolveModelContextLength(llm, agent.model, runLog);
 
       // Per-agent repo-intel toggle (Agent editor). When an agent opts out we
       // skip all enrichment entirely so its prompt is identical to the
@@ -190,6 +204,13 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // Skills — the agent's linked guidance, in the order the user arranged it.
+      // Only links whose per-agent switch AND whose skill's own `enabled` are
+      // both on reach the prompt; an agent with none produces a prompt byte-
+      // identical to the pre-skills one, because assemblePrompt omits the
+      // section when the array is empty.
+      const skillBlocks = await this.buildSkillBlocks(agent.id, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -202,6 +223,9 @@ export class ReviewRunExecutor {
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
+        // Linked skills, already rendered as `### name` blocks. Omitted entirely
+        // when the agent has none.
+        ...(skillBlocks.length > 0 ? { skills: skillBlocks } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
@@ -213,6 +237,10 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Stated PR intent/scope digest, when computed. Same omit-when-empty
+        // contract as the other digests.
+        ...(intentDigest ? { intent: intentDigest } : {}),
+        ...(modelContextLength ? { modelContextLength } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -248,6 +276,7 @@ export class ReviewRunExecutor {
       // Deterministic blocker count (severity ≥ the agent's gate) — the signal
       // the timeline colors on, NOT the model's self-reported verdict.
       const blockers = countBlockers(keptFindings, agent.ciFailOn);
+      const counts = severityCounts(keptFindings);
 
       // ---- Observability: agent_runs + ONE run_traces document --------------
       await this.repo.completeAgentRun(runId, {
@@ -260,6 +289,9 @@ export class ReviewRunExecutor {
         grounding,
         score: outcome.review.score,
         blockers,
+        criticalCount: counts.CRITICAL,
+        warningCount: counts.WARNING,
+        suggestionCount: counts.SUGGESTION,
         error: null,
       });
 
@@ -328,6 +360,57 @@ export class ReviewRunExecutor {
   }
 
   /**
+   * The target model's context window (tokens), from the provider's model
+   * catalog — feeds `reviewPullRequest`'s single-pass → map-reduce context
+   * fallback. Best-effort and silent: `listModels()` is a live catalog fetch
+   * for some providers (e.g. OpenRouter), so a network hiccup or an unlisted
+   * model must degrade to "unknown" (undefined), not fail the run.
+   */
+  private async resolveModelContextLength(
+    llm: LLMProvider,
+    model: string,
+    runLog: RunLogger,
+  ): Promise<number | undefined> {
+    try {
+      const models = await llm.listModels();
+      const found = models.find((m) => m.id === model)?.contextLength;
+      return found ?? undefined;
+    } catch (err) {
+      runLog.info(`model context length: lookup failed — ${(err as Error).message}`);
+      return undefined;
+    }
+  }
+
+  /**
+   * Resolve the agent's linked skills into prompt blocks, in link order.
+   *
+   * Best-effort by design: a DB hiccup here must not fail the review, so a
+   * failure logs and yields no blocks (the prompt then matches the no-skills
+   * baseline). The token count is logged so the run trace shows what the skills
+   * cost — the same number the Skills tab's budget hint is based on.
+   */
+  private async buildSkillBlocks(agentId: string, runLog: RunLogger): Promise<string[]> {
+    try {
+      // Through the container: `reviews` must not import the agents module's
+      // repository directly (no-cross-module-internals).
+      const links = await this.container.agentsRepo.enabledSkillsForPrompt(agentId);
+      if (links.length === 0) return [];
+
+      const blocks = links.map((l) => toSkillPromptBlock(l.skill));
+      const tokens = this.container.tokenizer.count(blocks.join('\n\n'));
+      runLog.info(
+        `skills: ${links.length} attached (+~${tokens} tokens) — ${links
+          .map((l) => l.skill.name)
+          .join(', ')}`,
+      );
+      return blocks;
+    } catch (err) {
+      runLog.info(`skills: skipped — ${(err as Error).message}`);
+      return [];
+    }
+  }
+
+  /**
    * Build a compact "Callers of changed symbols" digest for the prompt.
    *
    * Returns `undefined` when nothing should be added (flag off, no callers
@@ -386,6 +469,29 @@ export class ReviewRunExecutor {
     const skills = await resolveEnabledSkills(this.agents, agentId);
     if (skills.length > 0) runLog.info(`skills: ${skills.length} enabled skill(s) attached`);
     return { bodies: skills.map((s) => s.body), ids: skills.map((s) => s.id) };
+  }
+
+  /**
+   * Build a plain-text digest of the PR's stated intent (summary + in/out of
+   * scope) for the prompt's intent slot. Returns `undefined` when intent
+   * hasn't been computed for this PR yet — that's the normal steady state
+   * for most PRs, not a failure, so unlike the other digest builders this
+   * doesn't log an info line for the "nothing to attach" case.
+   */
+  private async buildIntentDigest(prId: string, runLog: RunLogger): Promise<string | undefined> {
+    const record = await this.repo.getIntent(prId);
+    if (!record) return undefined;
+
+    const inScope = record.in_scope.length > 0 ? record.in_scope.map((s) => `- ${s}`).join('\n') : '(none stated)';
+    const outOfScope =
+      record.out_of_scope.length > 0 ? record.out_of_scope.map((s) => `- ${s}`).join('\n') : '(none stated)';
+
+    const digest = `Summary: ${record.summary}\n\nIn scope:\n${inScope}\n\nOut of scope:\n${outOfScope}`;
+
+    runLog.info(
+      `intent: stated scope attached (${record.in_scope.length} in-scope, ${record.out_of_scope.length} out-of-scope item(s))`,
+    );
+    return digest;
   }
 
   /**

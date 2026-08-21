@@ -4,13 +4,21 @@ import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 
+const actionMutate = vi.fn();
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
-  useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
+  useFindingAction: () => ({ mutate: actionMutate, isPending: false }),
 }));
 
 import { FindingsPanel } from "./FindingsPanel";
 
-afterEach(cleanup);
+// jsdom doesn't implement scrollIntoView — FindingCard's nav-target effect calls it.
+Element.prototype.scrollIntoView = vi.fn();
+
+afterEach(() => {
+  cleanup();
+  actionMutate.mockClear();
+  vi.restoreAllMocks();
+});
 
 const FINDINGS: FindingRecord[] = [
   {
@@ -93,5 +101,25 @@ describe("FindingsPanel (smoke)", () => {
     );
     fireEvent.click(screen.getByText("Critical"));
     expect(onChange).toHaveBeenCalledWith(["CRITICAL"]);
+  });
+
+  it("pressing j moves keyboard focus to the next finding, so a/d then act on it", () => {
+    renderWithIntl(<FindingsPanel findings={FINDINGS} prId="pr1" />);
+    fireEvent.keyDown(window, { key: "j" }); // focus moves from f1 (idx 0) to f2 (idx 1)
+    fireEvent.keyDown(window, { key: "a" });
+    expect(actionMutate).toHaveBeenCalledWith({ findingId: "f2", action: "accept", prId: "pr1" });
+  });
+
+  it("pressing k at the first finding is clamped and does not move focus before it", () => {
+    renderWithIntl(<FindingsPanel findings={FINDINGS} prId="pr1" />);
+    fireEvent.keyDown(window, { key: "k" }); // already at idx 0, stays at idx 0
+    fireEvent.keyDown(window, { key: "d" });
+    expect(actionMutate).toHaveBeenCalledWith({ findingId: "f1", action: "dismiss", prId: "pr1" });
+  });
+
+  it("targetFindingId expands + focuses a non-first, initially-collapsed card", () => {
+    renderWithIntl(<FindingsPanel findings={FINDINGS} prId="pr1" targetFindingId="f2" targetNonce={1} />);
+    // f2 has no defaultExpanded (only idx 0 does) — it must still open via the target effect.
+    expect(screen.getByText("Loops a query per row.")).toBeInTheDocument();
   });
 });
