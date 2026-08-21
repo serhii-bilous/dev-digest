@@ -1,3 +1,4 @@
+import PQueue from 'p-queue';
 import type { Container } from '../../platform/container.js';
 import type { LLMProvider, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers, severityCounts } from '@devdigest/reviewer-core';
@@ -9,6 +10,12 @@ import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine, toSkillPromptBlock } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 import { resolveEnabledSkills } from '../agents/helpers.js';
+
+/**
+ * Bounds how many agents run their reviews at once (see the comment at the
+ * `PQueue` call site in `executeRuns`).
+ */
+export const AGENT_CONCURRENCY = 4;
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -113,10 +120,17 @@ export class ReviewRunExecutor {
 
     // Queued agents are independent reviews (different agent, own runId, own
     // trace) — running them one after another serialized total wall time to
-    // N × (one agent's review time) for no reason. Run them concurrently;
-    // each is already failure-isolated below, same as the sequential version.
-    await Promise.all(
-      jobs.map(async ({ agent, runId }) => {
+    // N × (one agent's review time) for no reason. Run them concurrently, but
+    // bounded: each agent's own map-reduce path can itself fan out up to
+    // MAP_REDUCE_CONCURRENCY (8) concurrent LLM calls, and each holds a DB
+    // connection across its persist transaction — an unbounded Promise.all
+    // over jobs.length agents (a workspace can enable more than the 4
+    // built-ins) would let concurrent agent runs pile onto the connection
+    // pool (10 by default) with no backpressure. Bounded the same way
+    // reviewer-core bounds map-reduce chunks.
+    const queue = new PQueue({ concurrency: AGENT_CONCURRENCY });
+    await queue.addAll(
+      jobs.map(({ agent, runId }) => async () => {
         const agentStart = Date.now();
         logger?.info(
           { runId, agent: agent.name, provider: agent.provider, model: agent.model, prId: pull.id },
