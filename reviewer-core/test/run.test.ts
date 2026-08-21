@@ -278,4 +278,80 @@ describe('reviewPullRequest (engine)', () => {
       expect(outcome.mode).toBe('map-reduce');
     });
   });
+
+  describe('map-reduce chunk failures', () => {
+    const clean = { verdict: 'approve', summary: 'ok', score: 100, findings: [] };
+
+    it('isolates one failing chunk: the review still reduces from the surviving chunks', async () => {
+      const diff = bigDiff(3, 100);
+      let calls = 0;
+      const flaky: LLMProvider = {
+        id: 'openrouter',
+        async completeStructured<T>(req): Promise<StructuredResult<T>> {
+          calls++;
+          if (calls === 1) throw new Error('malformed structured output');
+          return {
+            data: clean as unknown as T,
+            model: req.model,
+            tokensIn: 0,
+            tokensOut: 0,
+            costUsd: 0,
+            raw: '',
+            attempts: 1,
+          };
+        },
+        async listModels() {
+          return [];
+        },
+        async complete() {
+          throw new Error('not used');
+        },
+        async embed() {
+          return [];
+        },
+      };
+
+      const events: string[] = [];
+      const outcome = await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'm',
+        diff,
+        llm: flaky,
+        strategy: 'map-reduce',
+        onEvent: (e) => events.push(e.msg),
+      });
+
+      expect(outcome.review.verdict).toBe('approve');
+      expect(events.some((m) => m.includes('1/3 chunk(s) failed and were skipped'))).toBe(true);
+    });
+
+    it('throws when every map-reduce chunk fails, instead of silently returning a clean review', async () => {
+      const diff = bigDiff(2, 100);
+      const alwaysFails: LLMProvider = {
+        id: 'openrouter',
+        async completeStructured(): Promise<never> {
+          throw new Error('provider unavailable');
+        },
+        async listModels() {
+          return [];
+        },
+        async complete() {
+          throw new Error('not used');
+        },
+        async embed() {
+          return [];
+        },
+      };
+
+      await expect(
+        reviewPullRequest({
+          systemPrompt: 's',
+          model: 'm',
+          diff,
+          llm: alwaysFails,
+          strategy: 'map-reduce',
+        }),
+      ).rejects.toThrow('All 2 map-reduce chunk(s) failed');
+    });
+  });
 });

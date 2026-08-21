@@ -284,8 +284,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
       // not sink the other N-1 successful chunks (seen live: a single
       // markdown file broke structured-output validation and failed an
       // otherwise-clean 183-file map-reduce review outright). Skip it and
-      // keep going; if EVERY chunk fails, reduceReviews below degrades to an
-      // empty, non-blocking review rather than throwing.
+      // keep going — the all-chunks-failed case is handled after the loop.
       failedChunks++;
       emit('error', `${chunk.label}: review failed — ${(err as Error).message}`);
     }
@@ -299,6 +298,16 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
 
   if (failedChunks > 0) {
     emit('info', `${failedChunks}/${chunks.length} chunk(s) failed and were skipped`);
+  }
+  // If every chunk failed, `partials` is empty and reduceReviews/scoreFromFindings
+  // below would silently produce a "clean" 100/approve review — indistinguishable
+  // from a genuinely flawless PR. That's worse than failing loudly: it masks a
+  // systemic problem (LLM outage, bad credentials, provider rate limit) as a
+  // passing review. Treat total failure the same as single-pass failure — throw.
+  if (mode === 'map-reduce' && chunks.length > 0 && failedChunks === chunks.length) {
+    throw new Error(
+      `All ${chunks.length} map-reduce chunk(s) failed — review could not be completed`,
+    );
   }
 
   const merged = reduceReviews(partials);
