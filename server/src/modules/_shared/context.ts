@@ -15,6 +15,9 @@ export async function getContext(
   container: Container,
   req: FastifyRequest,
 ): Promise<RequestContext> {
+  // Run both lookups concurrently — they're independent, and every route on
+  // the hot path pays this cost once per request, so a serial await pair
+  // would double the latency for no benefit.
   const [user, workspace] = await Promise.all([
     container.auth.currentUser(req),
     container.auth.currentWorkspace(req),
