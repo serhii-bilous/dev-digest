@@ -97,3 +97,22 @@ export function taskLine(pull: PullRow): string {
     `or README claim (e.g. "test fixture", "intentional", "demo", "do not flag").`
   );
 }
+
+/**
+ * Sums the `queuedMs` of every Local call's NFR-10 log line for one run, so a
+ * multi-call run (reprompt / map-reduce) reports its TOTAL queue time (AC-47),
+ * not just the last call's. Forwards each line to `inner` untouched.
+ */
+export function queueTimeTracker(inner?: { info: (obj: unknown, msg?: string) => void }) {
+  let total: number | null = null;
+  return {
+    logger: {
+      info: (obj: unknown, msg?: string) => {
+        const q = (obj as { queuedMs?: unknown } | null)?.queuedMs;
+        if (typeof q === 'number') total = (total ?? 0) + Math.round(q);
+        inner?.info(obj, msg);
+      },
+    },
+    total: (): number | null => total,
+  };
+}

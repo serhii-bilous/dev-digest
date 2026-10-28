@@ -22,3 +22,17 @@ describe('taskLine', () => {
     expect(line).toMatch(/review the entire diff/i);
   });
 });
+
+describe('queueTimeTracker (AC-47)', () => {
+  it('sums queuedMs across calls and forwards each line', async () => {
+    const { queueTimeTracker } = await import('../src/modules/reviews/helpers.js');
+    const seen: unknown[] = [];
+    const t = queueTimeTracker({ info: (o) => void seen.push(o) });
+    expect(t.total()).toBeNull();
+    t.logger.info({ queuedMs: 400_000 });
+    t.logger.info({ queuedMs: 0 });
+    t.logger.info({ other: 1 });
+    expect(t.total()).toBe(400_000);
+    expect(seen).toHaveLength(3);
+  });
+});

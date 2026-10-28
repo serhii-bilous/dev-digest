@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Provider } from './contracts/knowledge.js';
 import type {
   PrMeta,
   PrDetail,
@@ -15,7 +16,7 @@ import type {
 // ---------- LLM ----------
 export const ModelInfo = z.object({
   id: z.string(),
-  provider: z.enum(['openai', 'anthropic', 'openrouter']),
+  provider: Provider,
   label: z.string().nullish(),
   created: z.number().int().nullish(),
   /** Pricing in USD per 1M tokens (when the provider exposes it, e.g. OpenRouter). */
@@ -43,8 +44,8 @@ export interface CompletionRequest {
 export interface CompletionResult {
   text: string;
   model: string;
-  tokensIn: number;
-  tokensOut: number;
+  tokensIn: number | null;
+  tokensOut: number | null;
   costUsd: number | null;
 }
 
@@ -72,15 +73,15 @@ export interface StructuredRequest<T> {
 export interface StructuredResult<T> {
   data: T;
   model: string;
-  tokensIn: number;
-  tokensOut: number;
+  tokensIn: number | null;
+  tokensOut: number | null;
   costUsd: number | null;
   raw: string;
   attempts: number;
 }
 
 export interface LLMProvider {
-  readonly id: 'openai' | 'anthropic' | 'openrouter';
+  readonly id: 'openai' | 'anthropic' | 'openrouter' | 'local';
   listModels(): Promise<ModelInfo[]>;
   complete(req: CompletionRequest): Promise<CompletionResult>;
   completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>>;
@@ -285,6 +286,7 @@ export type SecretKey =
   | 'OPENAI_API_KEY'
   | 'ANTHROPIC_API_KEY'
   | 'GITHUB_TOKEN'
+  | 'LOCAL_CLAUDE_OAUTH_TOKEN'
   | 'DATABASE_URL'
   | (string & {});
 

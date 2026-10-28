@@ -16,17 +16,47 @@ function clockTime(): string {
   return new Date().toTimeString().slice(0, 8);
 }
 
+const CANCEL_TTL_MS = 10 * 60 * 1000;
+
 export class RunBus {
   private emitters = new Map<string, EventEmitter>();
   private buffers = new Map<string, RunEvent[]>();
   private seq = new Map<string, number>();
   private completed = new Set<string>();
   private cancelled = new Set<string>();
+  private cancelHooks = new Map<string, Set<() => void>>();
 
   /** Request cancellation of an in-flight run. The runner checks `isCancelled`
    *  at its next checkpoint (between map-reduce files) and stops. */
   cancel(runId: string): void {
     this.cancelled.add(runId);
+    // Fire hooks once (e.g. abort a Local CLI child); a throwing hook must not
+    // block the others or the caller.
+    const hooks = this.cancelHooks.get(runId);
+    if (!hooks) return;
+    this.cancelHooks.delete(runId);
+    for (const cb of hooks) {
+      try {
+        cb();
+      } catch {
+        /* best-effort */
+      }
+    }
+  }
+
+  /** Register a callback fired when `cancel(runId)` is called. Fires at once
+   *  if the run is already cancelled. Returns an unregister function. */
+  onCancel(runId: string, cb: () => void): () => void {
+    if (this.cancelled.has(runId)) {
+      cb();
+      return () => undefined;
+    }
+    let hooks = this.cancelHooks.get(runId);
+    if (!hooks) this.cancelHooks.set(runId, (hooks = new Set()));
+    hooks.add(cb);
+    return () => {
+      hooks!.delete(cb);
+    };
   }
 
   /** Whether cancellation has been requested for a run. */
@@ -76,7 +106,13 @@ export class RunBus {
   complete(runId: string): void {
     const e = this.emitters.get(runId);
     this.completed.add(runId);
-    this.cancelled.delete(runId);
+    this.cancelHooks.delete(runId);
+    // The cancelled flag must outlive complete(): a run still waiting in the
+    // executor's queue (or loading its diff) registers late and must still see
+    // the cancel. Forget it after a grace period so the set stays bounded.
+    if (this.cancelled.has(runId)) {
+      setTimeout(() => this.cancelled.delete(runId), CANCEL_TTL_MS).unref();
+    }
     e?.emit('done');
     // Keep the buffer briefly available for late subscribers; clear emitter.
     this.emitters.delete(runId);

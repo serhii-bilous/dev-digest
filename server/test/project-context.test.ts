@@ -174,6 +174,7 @@ function setup(opts: { contextPaths: string[]; skillPaths?: string[]; files: Rec
     runBus: new RunBus(),
     git,
     llm: async () => llm,
+    llmFor: async () => llm,
     agentsRepo: {
       enabledSkillsForPrompt: vi.fn().mockResolvedValue(skillLinks),
       linkedSkills: vi.fn().mockResolvedValue([]),
@@ -188,6 +189,7 @@ function setup(opts: { contextPaths: string[]; skillPaths?: string[]; files: Rec
     insertFindings: vi.fn(async (_id: string, findings: unknown[]) => findings),
     markReviewed: vi.fn().mockResolvedValue(undefined),
     completeAgentRun: vi.fn().mockResolvedValue(undefined),
+    lockRunIfRunning: vi.fn().mockResolvedValue(true),
     saveRunTrace: vi.fn().mockResolvedValue(undefined),
   } as unknown as ReviewRepository;
 

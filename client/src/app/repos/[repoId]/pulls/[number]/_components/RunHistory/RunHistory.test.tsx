@@ -58,6 +58,8 @@ function run(o: Partial<RunSummary>): RunSummary {
     critical_count: null,
     warning_count: null,
     suggestion_count: null,
+    billing: "api",
+    queued_for_local: false,
     ...o,
   };
 }
@@ -144,5 +146,22 @@ describe("RunHistory — per-severity findings badges", () => {
     expect(screen.getByText("None")).toBeInTheDocument();
     expect(screen.queryByRole("group")).not.toBeInTheDocument();
     expect(screen.queryByText(/0 finding/)).not.toBeInTheDocument();
+  });
+});
+
+describe("RunHistory — Local subscription", () => {
+  it("shows Subscription instead of a dollar cost", () => {
+    renderRuns([run({ billing: "subscription", tokens_in: null, tokens_out: null, cost_usd: null })]);
+    expect(screen.getByText("Subscription")).toBeInTheDocument();
+  });
+
+  it("shows the queued text when queued_for_local", () => {
+    renderRuns([run({ status: "running", queued_for_local: true })]);
+    expect(screen.getByText("Queued: waiting for a Local slot")).toBeInTheDocument();
+  });
+
+  it("omits the queued text otherwise", () => {
+    renderRuns([run({ status: "running" })]);
+    expect(screen.queryByText(/Queued/)).not.toBeInTheDocument();
   });
 });

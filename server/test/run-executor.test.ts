@@ -98,6 +98,7 @@ function buildFakeRepo(getIntent: ReturnType<typeof vi.fn>) {
     insertFindings: vi.fn().mockResolvedValue([]),
     markReviewed: vi.fn().mockResolvedValue(undefined),
     completeAgentRun: vi.fn().mockResolvedValue(undefined),
+    lockRunIfRunning: vi.fn().mockResolvedValue(true),
     saveRunTrace: vi.fn().mockResolvedValue(undefined),
   } as unknown as ReviewRepository;
 }
@@ -111,6 +112,7 @@ function buildFakeContainer(llm: MockLLMProvider, runBus: RunBus): Container {
     runBus,
     git: new MockGitClient({ diff: DIFF }),
     llm: async () => llm,
+    llmFor: async () => llm,
     agentsRepo: agentsRepoStub,
     tokenizer: { count: vi.fn().mockReturnValue(0) },
     // The persist step now runs inside `db.transaction()` (insertReview →
@@ -135,6 +137,7 @@ function buildContainerWithLLM(llm: LLMProvider, runBus: RunBus): Container {
     runBus,
     git: new MockGitClient({ diff: DIFF }),
     llm: async () => llm,
+    llmFor: async () => llm,
     agentsRepo: agentsRepoStub,
     tokenizer: { count: vi.fn().mockReturnValue(0) },
     db: { transaction: (fn: (tx: unknown) => Promise<unknown>) => fn({}) },
@@ -235,6 +238,7 @@ describe('ReviewRunExecutor.executeRuns — transaction failure aborts the unit 
       insertFindings: vi.fn().mockRejectedValue(new Error('boom')),
       markReviewed: vi.fn().mockResolvedValue(undefined),
       completeAgentRun: vi.fn().mockResolvedValue(undefined),
+      lockRunIfRunning: vi.fn().mockResolvedValue(true),
       saveRunTrace: vi.fn().mockResolvedValue(undefined),
     } as unknown as ReviewRepository;
     const runBus = new RunBus();

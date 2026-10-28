@@ -18,7 +18,35 @@
     "testing": "Testing…",
     "testFailed": "Test failed",
     "configured": "Configured",
-    "notSet": "Not set"
+    "notSet": "Not set",
+    "local": {
+      "label": "Local (Claude Code)",
+      "hint": "Uses your Claude subscription through the local Claude Code CLI. Paste the token from `claude setup-token`; it is stored server-side and never shown again.",
+      "tokenLabel": "Claude Code OAuth token",
+      "tokenPlaceholder": "Paste a new token to replace the stored one",
+      "saveToken": "Save token",
+      "saving": "Saving…",
+      "saveFailed": "Could not save the token",
+      "saved": "Token saved",
+      "cliFound": "CLI {version}",
+      "cliFoundNoVersion": "CLI found",
+      "cliMissing": "CLI not found",
+      "tokenConfigured": "token configured",
+      "tokenNotConfigured": "no token",
+      "available": "available",
+      "unavailable": "unavailable: {reason}",
+      "statusLoading": "Checking Local status…",
+      "reasons": {
+        "cli_missing": "the Claude Code CLI is not installed or not on PATH",
+        "token_missing": "no OAuth token is configured",
+        "auth_failed": "authentication failed",
+        "rate_limited": "rate limited",
+        "timeout": "the CLI timed out",
+        "invalid_output": "the CLI returned invalid output",
+        "cli_error": "the CLI reported an error"
+      },
+      "reasonPrefix": "Reason: {reason}"
+    }
   },
   "models": {
     "title": "Feature Models",

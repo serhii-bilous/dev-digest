@@ -76,11 +76,11 @@ export default async function evalsRoutes(appBase: FastifyInstance) {
 
   app.post('/evals/:id/run', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
-    return service.runOne(workspaceId, req.params.id);
+    return service.runOne(workspaceId, req.params.id, req.log);
   });
 
   app.post('/evals/run-all', { schema: { querystring: OwnerQuery } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
-    return service.runAll(workspaceId, req.query.owner_kind, req.query.owner_id);
+    return service.runAll(workspaceId, req.query.owner_kind, req.query.owner_id, req.log);
   });
 }

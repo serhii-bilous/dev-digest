@@ -42,8 +42,19 @@ export const agentRuns = pgTable(
     criticalCount: integer('critical_count'),
     warningCount: integer('warning_count'),
     suggestionCount: integer('suggestion_count'),
+    /** Why a run failed, as a stable machine-readable reason; null unless a provider classified it. */
+    failureReason: text('failure_reason', {
+      enum: ['cli_missing', 'token_missing', 'auth_failed', 'rate_limited', 'timeout', 'invalid_output', 'cli_error'],
+    }),
+    /** 'subscription' for runs billed to a flat plan (local Claude CLI), else per-token 'api'. */
+    billing: text('billing', { enum: ['api', 'subscription'] }).notNull().default('api'),
   },
   (t) => ({
+    failureReasonCk: check(
+      'agent_runs_failure_reason_ck',
+      sql`${t.failureReason} is null or ${t.failureReason} in ('cli_missing','token_missing','auth_failed','rate_limited','timeout','invalid_output','cli_error')`,
+    ),
+    billingCk: check('agent_runs_billing_ck', sql`${t.billing} in ('api','subscription')`),
     // Serves the PR timeline, the latest-run cost lookup on the PR list, and
     // the active-runs endpoint the client polls every 4s while a run is live.
     prRanAtIdx: index('agent_runs_pr_ran_at_idx').on(t.prId, t.ranAt.desc()),

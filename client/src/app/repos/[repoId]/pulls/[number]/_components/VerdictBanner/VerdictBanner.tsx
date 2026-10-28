@@ -27,7 +27,12 @@ export function VerdictBanner({
   agentName?: string | null;
   /** Cost/token usage of the run that produced this review (Run Cost Badge).
       Omit to hide the line; null shows "—" (run known, data missing). */
-  run?: { cost_usd: number | null; tokens_in: number | null; tokens_out: number | null } | null;
+  run?: {
+    cost_usd: number | null;
+    tokens_in: number | null;
+    tokens_out: number | null;
+    billing?: "api" | "subscription";
+  } | null;
 }) {
   const t = useTranslations("prReview");
   const m = VERDICT_META[verdict] ?? VERDICT_META.comment;
@@ -56,6 +61,7 @@ export function VerdictBanner({
             <RunCostBadge
               variant="withTokens"
               cost={run?.cost_usd ?? null}
+              billing={run?.billing}
               tokens={(run?.tokens_in ?? 0) + (run?.tokens_out ?? 0)}
             />
           </div>

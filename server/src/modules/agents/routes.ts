@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import { CiFailOn, Provider, ReviewStrategy, refineAgentProviderModel } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
@@ -42,7 +42,7 @@ const CreateAgentBody = z.object({
   ci_fail_on: CiFailOn.optional(),
   repo_intel: z.boolean().optional(),
   enabled: z.boolean().optional(),
-});
+}).superRefine(refineAgentProviderModel);
 
 const UpdateAgentBody = z.object({
   name: z.string().min(1).optional(),
@@ -55,7 +55,7 @@ const UpdateAgentBody = z.object({
   ci_fail_on: CiFailOn.optional(),
   repo_intel: z.boolean().optional(),
   enabled: z.boolean().optional(),
-});
+}).superRefine(refineAgentProviderModel);
 
 /**
  * Set the whole ordered set (`skills` with per-link state, or the older

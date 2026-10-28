@@ -11,6 +11,8 @@ vi.mock("../../../../../lib/hooks/agents", () => ({
   useProviderModels: () => ({ data: [{ id: "gpt-4.1", provider: "openai" }] }),
 }));
 
+vi.mock("@/lib/hooks/local", () => ({ useLocalStatus: () => ({ data: undefined }) }));
+
 import { AgentEditor } from "./AgentEditor";
 
 afterEach(cleanup);

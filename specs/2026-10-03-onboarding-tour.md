@@ -1,6 +1,6 @@
-# Spec: Onboarding Tour (Onboarding Generator)   |   Spec ID: SPEC-2026-10-03-onboarding-tour   |   Status: draft
+# Spec: Onboarding Tour (Onboarding Generator)   |   Spec ID: SPEC-2026-10-03-onboarding-tour   |   Status: approved
 Supersedes: none (replaces the pre-staged, never-shipped onboarding scaffolding described below)
-Plan: none yet
+Plan: docs/plans/2026-10-03-onboarding-tour.md
 Modules touched: server (incl. repo-intel), client, `@devdigest/shared`
 
 ## Problem & why

@@ -169,6 +169,11 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     await app.register(plugin);
   }
 
+  // Graceful shutdown: kill any live Local CLI children (NFR-7).
+  app.addHook('onClose', async () => {
+    await container.killLocalProcesses();
+  });
+
   // Close the db handle we created on shutdown.
   if (handle) app.addHook('onClose', async () => handle.close());
 

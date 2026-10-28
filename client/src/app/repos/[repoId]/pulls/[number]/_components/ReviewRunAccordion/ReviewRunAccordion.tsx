@@ -168,7 +168,12 @@ export function ReviewRunAccordion({
                 agentName={review.agent_name}
                 run={
                   run
-                    ? { cost_usd: run.cost_usd, tokens_in: run.tokens_in, tokens_out: run.tokens_out }
+                    ? {
+                        cost_usd: run.cost_usd,
+                        tokens_in: run.tokens_in,
+                        tokens_out: run.tokens_out,
+                        billing: run.billing,
+                      }
                     : null
                 }
               />

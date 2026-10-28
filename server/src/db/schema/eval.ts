@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, integer, boolean, jsonb, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { pgTable, uuid, text, integer, boolean, jsonb, timestamp, doublePrecision, check } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { pullRequests } from './pulls';
 
@@ -19,7 +20,9 @@ export const evalCases = pgTable('eval_cases', {
   notes: text('notes'),
 });
 
-export const evalRuns = pgTable('eval_runs', {
+export const evalRuns = pgTable(
+  'eval_runs',
+  {
   id: uuid('id').primaryKey().defaultRandom(),
   caseId: uuid('case_id')
     .notNull()
@@ -32,7 +35,12 @@ export const evalRuns = pgTable('eval_runs', {
   citationAccuracy: doublePrecision('citation_accuracy'),
   durationMs: integer('duration_ms'),
   costUsd: doublePrecision('cost_usd'),
-});
+  billing: text('billing', { enum: ['api', 'subscription'] }).notNull().default('api'),
+  },
+  (t) => ({
+    billingCk: check('eval_runs_billing_ck', sql`${t.billing} in ('api','subscription')`),
+  }),
+);
 
 export const conformanceChecks = pgTable('conformance_checks', {
   id: uuid('id').primaryKey().defaultRandom(),

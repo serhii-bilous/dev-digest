@@ -109,8 +109,8 @@ export interface ReviewOutcome {
   dropped: { finding: Finding; reason: string }[];
   /** Prompt assembly (for the run trace). */
   assembly: PromptAssembly;
-  tokensIn: number;
-  tokensOut: number;
+  tokensIn: number | null;
+  tokensOut: number | null;
   costUsd: number | null;
   /** Raw model output (for the run trace). */
   raw: string;

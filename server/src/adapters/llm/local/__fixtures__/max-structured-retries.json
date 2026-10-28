@@ -1,0 +1,1 @@
+{"type":"result","subtype":"error_max_structured_output_retries","is_error":true,"errors":["Failed to provide valid structured output after 5 attempts"],"usage":{"input_tokens":50,"output_tokens":10}}

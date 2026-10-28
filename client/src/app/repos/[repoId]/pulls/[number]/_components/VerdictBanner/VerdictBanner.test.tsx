@@ -46,6 +46,21 @@ describe("VerdictBanner (smoke)", () => {
     expect(screen.getByText("9 500 tok · $0.014")).toBeInTheDocument();
   });
 
+  it("shows Subscription for a Local run even when cost_usd is 0", () => {
+    const { container } = renderWithIntl(
+      <VerdictBanner
+        verdict="approve"
+        summary={null}
+        score={92}
+        findingsCount={0}
+        blockers={0}
+        run={{ cost_usd: 0, tokens_in: null, tokens_out: null, billing: "subscription" }}
+      />,
+    );
+    expect(screen.getByText("Subscription")).toBeInTheDocument();
+    expect(container.textContent).not.toContain("$0.00");
+  });
+
   it("renders no cost line for a run without cost/token data (never $0.00)", () => {
     renderWithIntl(
       <VerdictBanner

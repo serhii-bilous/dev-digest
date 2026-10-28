@@ -17,6 +17,23 @@ that fits; never invent a new heading.
 
 ## Decisions
 
+### 2026-10-26 — Docker stack runs the API under `tsx`, with clones mounted at the host's absolute path
+
+**What:** `docker compose up -d --build` runs Postgres + API + web.
+`server/Dockerfile` starts the API with `tsx` (`server/docker-entrypoint.sh`
+migrates, seeds unless `DEVDIGEST_SEED=false`, then serves). The `api` service
+bind-mounts `server/clones` at the **same absolute path** it has on the host.
+**Why:** `repos.clone_path` stores absolute host paths
+(`/Users/…/server/clones/<owner>/<name>`), and the DB is shared with
+`./scripts/dev.sh`. Any other mount point breaks every repo that was already
+imported. `tsc` does not rewrite the `@devdigest/reviewer-core` and
+`@devdigest/shared` path aliases, so `node dist/server.js` cannot resolve them.
+**Rejected:** `pnpm build && pnpm start` (the aliases stay unresolved at
+runtime), and a named volume for clones (its paths don't match the ones
+already stored in the DB). Note: `NEXT_PUBLIC_API_BASE` is a build arg that
+the **browser** calls, so it must stay `http://localhost:3001`. Setting it to
+`http://api:3001` breaks every fetch, and any change to it needs a rebuild.
+
 ### 2026-10-02 — `spec-creator` write scope is a frontmatter PreToolUse hook, not prompt wording
 
 **What:** `.claude/agents/spec-creator.md` (opus) is the only agent that writes
@@ -190,6 +207,16 @@ input but left responses unchecked, so contract drift surfaced in the browser.
 
   Every gap is OpenRouter- or CI-runner-related, so the client cannot currently express an OpenRouter-backed agent even though the API accepts one.
 
+  - **2026-10-28** — Update: `contracts/knowledge.ts`, `platform.ts` and
+    `trace.ts` are now byte-identical across the two copies and can be copied
+    wholesale (`cmp server/src/vendor/shared/contracts/trace.ts
+    client/src/vendor/shared/contracts/trace.ts`). `adapters.ts` and
+    `eval-ci.ts` still diverge (no `AgentManifest` on the client), so changes
+    there must be hand-applied as deltas — and checked with `git diff --
+    client/src/vendor/shared`: during the Local-provider build an implementor
+    reported the `adapters.ts` delta as applied when the file was untouched,
+    and only `pr-self-review` invariant #1 caught it.
+
 - **2026-08-21** — Map-reduce review (per-file chunks, `mapWithConcurrency` in
   `reviewer-core/src/review/run.ts`) has a structural cross-file blind spot: a
   chunk reviewing file A cannot see a compensating change in file B, so a
@@ -325,6 +352,13 @@ input but left responses unchecked, so contract drift surfaced in the browser.
 - **2026-07-29** — `skills-lock.json` disagrees with `.claude/skills/` in both directions, so it cannot be read as an index of available skills; read the directory. Evidence: lock-only — `architecture-patterns`, `github-workflow-automation`; disk-only — `mermaid-diagram`, `react-best-practices`, `react-testing-library`, `security`.
 
 ## Recurring Errors & Fixes
+
+- **2026-10-26** — `docker-compose.yml` now defines `api` and `web` too, so a
+  bare `docker compose up -d` starts the whole stack and takes ports
+  3000/3001. Run that way, `pnpm dev` then fails with `EADDRINUSE`. For a
+  Postgres-only start use `docker compose up -d postgres`; `scripts/dev.sh:57`
+  already does. Before switching to `pnpm dev`, run
+  `docker compose stop api web`.
 
 ## Session Notes
 

@@ -6,6 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon, Badge, Toggle } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
+import { useLocalStatus } from "@/lib/hooks/local";
 import { useDeleteAgent } from "../../../../lib/hooks/agents";
 import { modelColor } from "./helpers";
 import { s } from "./styles";
@@ -25,6 +26,8 @@ export function AgentCard({
 }) {
   const t = useTranslations("agents");
   const del = useDeleteAgent();
+  const { data: localStatus } = useLocalStatus();
+  const localUnavailable = ag.provider === "local" && !!localStatus && !localStatus.available;
   const color = modelColor(ag.model);
   return (
     <div onClick={onClick} style={s.card(!!active, ag.enabled)}>
@@ -63,6 +66,15 @@ export function AgentCard({
         <span className="mono" style={s.modelChip(color)}>
           {ag.model}
         </span>
+        {localUnavailable && (
+          <Badge color="var(--warning, #f59e0b)" icon="AlertTriangle">
+            {localStatus?.reason === "cli_missing"
+              ? t("card.localUnavailableCli")
+              : localStatus?.reason === "token_missing"
+                ? t("card.localUnavailableToken")
+                : t("card.localUnavailable")}
+          </Badge>
+        )}
         {skillCount != null && (
           <Badge color="var(--text-secondary)" icon="Sparkles">
             {t("card.skillCount", { count: skillCount })}

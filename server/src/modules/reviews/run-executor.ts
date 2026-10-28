@@ -1,18 +1,19 @@
 import PQueue from 'p-queue';
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, SpecReadEntry, UnifiedDiff } from '@devdigest/shared';
+import type { LocalFailureReason, Review, RunTrace, SpecReadEntry, UnifiedDiff } from '@devdigest/shared';
 import {
   reviewPullRequest,
   countBlockers,
   severityCounts,
   type ContextSpec,
 } from '@devdigest/reviewer-core';
+import { LocalProviderError, billingFor, isAbortError } from '../../platform/local-errors.js';
 import { DEFAULT_CONTEXT_BUDGET_TOKENS } from '../../platform/config.js';
 import { RunLogger, type PinoLike } from '../../platform/run-logger.js';
 import type * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
-import { taskLine, toSkillPromptBlock } from './helpers.js';
+import { queueTimeTracker, taskLine, toSkillPromptBlock } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 import { resolveEnabledSkills } from '../agents/helpers.js';
 import {
@@ -100,8 +101,8 @@ export class ReviewRunExecutor {
           .completeAgentRun(runId, {
             status: 'failed',
             durationMs: 0,
-            tokensIn: 0,
-            tokensOut: 0,
+            tokensIn: agent.provider === 'local' ? null : 0,
+            tokensOut: agent.provider === 'local' ? null : 0,
             costUsd: null,
             findingsCount: 0,
             grounding: '0/0 passed',
@@ -149,7 +150,7 @@ export class ReviewRunExecutor {
           `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
         );
         try {
-          const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, intentDigest, agent, runId, runLog);
+          const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, intentDigest, agent, runId, runLog, logger);
           logger?.info(
             {
               runId,
@@ -163,7 +164,8 @@ export class ReviewRunExecutor {
         } catch (err) {
           // runOneAgent already persisted the failure/cancel (status + error +
           // trace) and completed the bus; here we only log at the run level.
-          const cancelled = err instanceof RunCancelledError;
+          const cancelled =
+            err instanceof RunCancelledError || isAbortError(err) || this.container.runBus.isCancelled(runId);
           logger?.[cancelled ? 'info' : 'error'](
             { runId, agent: agent.name, err: (err as Error).message, durationMs: Date.now() - agentStart },
             `review: agent "${agent.name}" ${cancelled ? 'cancelled' : 'failed'}`,
@@ -183,6 +185,7 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    logger?: Logger,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -195,12 +198,33 @@ export class ReviewRunExecutor {
     // Hoisted so a failure AFTER context resolution still records what was read.
     let specsRead: SpecReadEntry[] = [];
 
+    // Cancel wiring: RunBus.cancel() aborts this controller, which kills a
+    // running Local CLI child / removes a queued call from the slot gate.
+    const abort = new AbortController();
+    this.container.runBus.onCancel(runId, () => abort.abort());
+    const isLocal = agent.provider === 'local';
+    const billing = billingFor(agent.provider);
+    // The provider logs one line per call incl. queuedMs (NFR-10); capture it
+    // for the trace without any prompt/output/token ever passing through here.
+    const queue = queueTimeTracker(logger);
+    const localLogger = queue.logger;
+
     try {
+      // Cancelled while queued behind AGENT_CONCURRENCY / loading the diff:
+      // never resolve a provider or take a Local slot.
+      if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
+
       // Resolve the agent's LLM provider. (container.llm throws if the provider
       // key is missing — caught below and persisted as a failed run.)
       const llm = await runLog.step(
         `Resolving ${agent.provider} provider`,
-        () => this.container.llm(agent.provider as Provider),
+        () =>
+          this.container.llmFor(agent.provider, {
+            runId,
+            signal: abort.signal,
+            onQueued: () => runLog.info('Queued: waiting for a Local slot'),
+            logger: localLogger,
+          }),
         { kind: 'tool' },
       );
 
@@ -291,6 +315,10 @@ export class ReviewRunExecutor {
       // between these writes could otherwise leave behind. The caller (here)
       // owns the transaction; the repository methods just accept the handle.
       const { review, findingRows } = await this.container.db.transaction(async (tx) => {
+        // Cancelled between the CLI returning and now: persist nothing (AC-33).
+        // The row lock makes a concurrent cancel wait for this commit.
+        const stillRunning = await this.repo.lockRunIfRunning(runId, tx);
+        if (!stillRunning || this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         const review = await this.repo.insertReview(
           {
             workspaceId,
@@ -324,8 +352,9 @@ export class ReviewRunExecutor {
       await this.repo.completeAgentRun(runId, {
         status: 'done',
         durationMs,
-        tokensIn,
-        tokensOut,
+        // Local may not report usage: keep null (unknown) rather than claim 0.
+        tokensIn: isLocal ? tokensIn : (tokensIn ?? 0),
+        tokensOut: isLocal ? tokensOut : (tokensOut ?? 0),
         costUsd,
         findingsCount: findingRows.length,
         grounding,
@@ -350,6 +379,8 @@ export class ReviewRunExecutor {
           duration_ms: durationMs,
           tokens_in: tokensIn,
           tokens_out: tokensOut,
+          billing,
+          ...(queue.total() !== null ? { queued_ms: queue.total() } : {}),
           cost_usd: costUsd,
           findings: findingRows.length,
           grounding,
@@ -372,26 +403,39 @@ export class ReviewRunExecutor {
     } catch (err) {
       // Failure/cancel: persist status + the error text + the log-so-far so the
       // run (and WHY it failed) is visible on the UI after a reload.
-      const cancelled = err instanceof RunCancelledError;
+      const cancelled =
+        err instanceof RunCancelledError || isAbortError(err) || this.container.runBus.isCancelled(runId);
       const status = cancelled ? 'cancelled' : 'failed';
-      const msg = cancelled ? 'Cancelled by user' : (err as Error).message;
+      const localErr = !cancelled && err instanceof LocalProviderError ? err : undefined;
+      const failureReason: LocalFailureReason | null = localErr?.reason ?? null;
+      // "<reason>: <message>" so the reason reaches MCP via shapeRunStatus (AC-34).
+      const msg = cancelled
+        ? 'Cancelled by user'
+        : localErr
+          ? `${localErr.reason}: ${localErr.message}`
+          : (err as Error).message;
       runLog.error(cancelled ? 'Run cancelled by user' : `Run failed: ${msg}`);
       await this.repo
         .completeAgentRun(runId, {
           status,
           durationMs: Date.now() - start,
-          tokensIn: 0,
-          tokensOut: 0,
+          // Local failures store unknown (null) usage; other providers keep 0.
+          tokensIn: isLocal ? null : 0,
+          tokensOut: isLocal ? null : 0,
           costUsd: null,
           findingsCount: 0,
           grounding: '0/0 passed',
           error: msg,
+          failureReason,
         })
         .catch(() => undefined);
       await this.repo
         .saveRunTrace(
           runId,
-          this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, specsRead),
+          this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, specsRead, {
+            queuedMs: queue.total(),
+            failureReason,
+          }),
         )
         .catch(() => undefined);
       this.container.runBus.complete(runId);
@@ -632,6 +676,7 @@ export class ReviewRunExecutor {
     grounding: string,
     durationMs = 0,
     specsRead: SpecReadEntry[] = [],
+    local: { queuedMs?: number | null; failureReason?: LocalFailureReason | null } = {},
   ): RunTrace {
     return {
       config: {
@@ -642,7 +687,17 @@ export class ReviewRunExecutor {
         pr: pull.number,
         source: 'local',
       },
-      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, cost_usd: null, findings: 0, grounding },
+      stats: {
+        duration_ms: durationMs,
+        tokens_in: agent.provider === 'local' ? null : 0,
+        tokens_out: agent.provider === 'local' ? null : 0,
+        billing: billingFor(agent.provider),
+        ...(local.queuedMs != null ? { queued_ms: local.queuedMs } : {}),
+        ...(local.failureReason ? { failure_reason: local.failureReason } : {}),
+        cost_usd: null,
+        findings: 0,
+        grounding,
+      },
       prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
       tool_calls: [],
       raw_output: '',

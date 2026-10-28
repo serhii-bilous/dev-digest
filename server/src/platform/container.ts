@@ -6,6 +6,9 @@ import type {
   CodeIndex,
   Embedder,
   LLMProvider,
+  ApiProvider,
+  Provider,
+  LocalStatus,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
@@ -21,6 +24,16 @@ import { AnthropicProvider } from '../adapters/llm/anthropic.js';
 import { OpenAIEmbedder } from '../adapters/embedder/openai.js';
 import { OpenRouterProvider } from '@devdigest/reviewer-core';
 import { estimateCost } from '../adapters/llm/pricing.js';
+import {
+  CliRunner,
+  LocalSlotGate,
+  LocalClaudeProvider,
+  createProbe,
+  makeDefaultExec,
+  type ExecFn,
+  type SpawnFn,
+} from '../adapters/llm/local/index.js';
+import { localUnavailableError, type LocalLogger, type LocalRunContext } from './local-errors.js';
 import { PriceBook } from './price-book.js';
 import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
@@ -48,7 +61,17 @@ export interface ContainerOverrides {
   codeIndex?: CodeIndex;
   embedder?: Embedder;
   /** Pre-built providers by id (skip key lookup). */
-  llm?: Partial<Record<'openai' | 'anthropic' | 'openrouter', LLMProvider>>;
+  llm?: Partial<Record<ApiProvider, LLMProvider>>;
+  /** Local (Claude Code CLI) seams — stubbed spawn/exec/clock in tests. */
+  local?: {
+    spawn?: SpawnFn;
+    exec?: ExecFn;
+    cliPath?: string;
+    cliArgsPrefix?: string[];
+    clock?: () => number;
+    /** Override the CLI working-dir root (tests use an os.tmpdir-based one). */
+    tmpRoot?: string;
+  };
   /** repo-intel facade (T1.1+) — tests inject mock RepoIntel implementations. */
   repoIntel?: RepoIntel;
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
@@ -82,6 +105,9 @@ export class Container {
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
+  private _localGate?: LocalSlotGate;
+  private _localRunner?: CliRunner;
+  private _localProbe?: () => Promise<LocalStatus>;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -180,7 +206,7 @@ export class Container {
   }
 
   /** Resolve an LLM provider by id; constructs from the secret key, cached. */
-  async llm(id: 'openai' | 'anthropic' | 'openrouter'): Promise<LLMProvider> {
+  async llm(id: ApiProvider): Promise<LLMProvider> {
     const injected = this.overrides.llm?.[id];
     if (injected) return injected;
     const cached = this.llmCache.get(id);
@@ -190,7 +216,73 @@ export class Container {
     return provider;
   }
 
-  private async buildLlm(id: 'openai' | 'anthropic' | 'openrouter'): Promise<LLMProvider> {
+  /** Process-wide cap (2) on concurrent Local CLI calls. */
+  get localGate(): LocalSlotGate {
+    return (this._localGate ??= new LocalSlotGate(2, this.overrides.local?.clock));
+  }
+
+  private get localRunner(): CliRunner {
+    return (this._localRunner ??= new CliRunner({
+      cliPath: this.overrides.local?.cliPath,
+      cliArgsPrefix: this.overrides.local?.cliArgsPrefix,
+      spawn: this.overrides.local?.spawn,
+      pathEnv: this.config.pathEnv ?? '',
+      cloneDir: this.config.cloneDir,
+      tmpRoot: this.overrides.local?.tmpRoot ?? this.config.localRunsDir,
+      now: this.overrides.local?.clock,
+    }));
+  }
+
+  /** Token comes from DevDigest secrets only (file, then env of the same name). */
+  private localToken = (): Promise<string | undefined> => this.secrets.get('LOCAL_CLAUDE_OAUTH_TOKEN');
+
+  private get localProbe(): () => Promise<LocalStatus> {
+    return (this._localProbe ??= createProbe({
+      cliPath: this.overrides.local?.cliPath ?? 'claude',
+      cliArgsPrefix: this.overrides.local?.cliArgsPrefix,
+      exec: this.overrides.local?.exec ?? makeDefaultExec(this.config.pathEnv ?? ''),
+      getToken: this.localToken,
+      now: this.overrides.local?.clock,
+    }));
+  }
+
+  /** Local availability (CLI --version + token presence). Never a model call. */
+  localStatus(): Promise<LocalStatus> {
+    return this.localProbe();
+  }
+
+  /** Terminate every live Local CLI child (graceful shutdown). */
+  async killLocalProcesses(): Promise<void> {
+    await this._localRunner?.killAll();
+  }
+
+  /**
+   * Resolve any provider. API ids delegate to `llm()`; `local` fails fast with
+   * a LocalProviderError when unavailable, else returns a run-bound provider
+   * (not cached: it carries the run's cancel signal / queue callback).
+   */
+  async llmFor(
+    provider: Provider,
+    ctx: LocalRunContext & { logger?: LocalLogger } = {},
+  ): Promise<LLMProvider> {
+    if (provider !== 'local') return this.llm(provider);
+    const status = await this.localStatus();
+    if (!status.available) {
+      throw localUnavailableError(status.reason ?? 'cli_missing');
+    }
+    const { logger, ...runCtx } = ctx;
+    return new LocalClaudeProvider({
+      runner: this.localRunner,
+      gate: this.localGate,
+      probe: this.localProbe,
+      getToken: this.localToken,
+      logger: logger ?? { info: () => {} },
+      ctx: runCtx,
+      now: this.overrides.local?.clock,
+    });
+  }
+
+  private async buildLlm(id: ApiProvider): Promise<LLMProvider> {
     if (id === 'openai') {
       const key = await this.secrets.get('OPENAI_API_KEY');
       if (!key) throw new ConfigError('OPENAI_API_KEY is not configured');

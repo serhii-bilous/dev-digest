@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Provider } from './knowledge.js';
+import { ApiProvider, LocalFailureReason, LocalUnavailableReason } from './knowledge.js';
 import { SeverityCounts } from './findings.js';
 
 /**
@@ -23,7 +23,7 @@ export type FeatureModelId = z.infer<typeof FeatureModelId>;
 
 /** A chosen provider + model for one feature. */
 export const FeatureModelChoice = z.object({
-  provider: Provider,
+  provider: ApiProvider,
   model: z.string().min(1),
 });
 export type FeatureModelChoice = z.infer<typeof FeatureModelChoice>;
@@ -38,7 +38,7 @@ export interface FeatureModelDef {
   id: FeatureModelId;
   label: string;
   description: string;
-  defaultProvider: Provider;
+  defaultProvider: ApiProvider;
   defaultModel: string;
 }
 export const FEATURE_MODELS: FeatureModelDef[] = [
@@ -108,7 +108,7 @@ export const SettingsUpdate = Settings.partial();
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>;
 
 // ---- Connection test ----
-export const ConnTestProvider = z.enum(['openai', 'anthropic', 'openrouter', 'github']);
+export const ConnTestProvider = z.enum(['openai', 'anthropic', 'openrouter', 'local', 'github']);
 export type ConnTestProvider = z.infer<typeof ConnTestProvider>;
 
 export const ConnTestRequest = z.object({
@@ -123,6 +123,8 @@ export const ConnTestResult = z.object({
   ok: z.boolean(),
   message: z.string(),
   detail: z.unknown().optional(),
+  /** Set on local-provider failures. */
+  reason: LocalFailureReason.optional(),
 });
 export type ConnTestResult = z.infer<typeof ConnTestResult>;
 
@@ -132,9 +134,26 @@ export const SecretsStatus = z.object({
   openai: z.boolean(),
   anthropic: z.boolean(),
   openrouter: z.boolean(),
+  local: z.boolean(),
   github: z.boolean(),
 });
 export type SecretsStatus = z.infer<typeof SecretsStatus>;
+
+/** Availability of the local Claude CLI provider. */
+export const LocalStatus = z.object({
+  available: z.boolean(),
+  reason: LocalUnavailableReason.optional(),
+  cli_version: z.string().optional(),
+  token_configured: z.boolean(),
+});
+export type LocalStatus = z.infer<typeof LocalStatus>;
+
+/** Save the local provider's OAuth token (value never echoed back). */
+export const SecretSaveRequest = z.object({
+  provider: z.literal('local'),
+  key: z.string().min(1),
+});
+export type SecretSaveRequest = z.infer<typeof SecretSaveRequest>;
 
 // ---- Repos ----
 export const RepoInput = z.object({

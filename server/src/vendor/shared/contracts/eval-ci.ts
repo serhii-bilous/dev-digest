@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Verdict, Finding, Severity, FindingCategory } from './findings.js';
-import { EvalCase, EvalRun, EvalOwnerKind, Conformance, Provider, CiFailOn } from './knowledge.js';
+import { EvalCase, EvalRun, EvalOwnerKind, Conformance, ApiProvider, CiFailOn } from './knowledge.js';
 
 /**
  * A4 — Eval / CI / Compose / Conformance API contracts (L06).
@@ -169,7 +169,11 @@ export type CiFile = z.infer<typeof CiFile>;
  */
 export const AgentManifest = z.object({
   name: z.string().min(1),
-  provider: Provider.default('openrouter'),
+  provider: z
+    .string()
+    .refine((v) => v !== 'local', { message: "Local agents can't run in CI" })
+    .pipe(ApiProvider)
+    .default('openrouter'),
   model: z.string().min(1),
   system_prompt: z.string(),
   // Tolerate both a missing key and an explicit `null` (YAML `skills:` with no

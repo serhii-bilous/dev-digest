@@ -1,5 +1,9 @@
 name: devdigest
 
+# Whole stack:   docker compose up -d --build   → web :3000, API :3001, Postgres :5436
+# Postgres only: docker compose up -d postgres  (what ./scripts/dev.sh uses)
+# NEVER `docker compose down -v` — it deletes the devdigest_pgdata volume.
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -18,6 +22,50 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: devdigest-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # API keys (OPENAI/ANTHROPIC/OPENROUTER/GITHUB_TOKEN) come from server/.env;
+    # the values under `environment` below win over it.
+    env_file:
+      - path: server/.env
+        required: false
+    environment:
+      DATABASE_URL: postgres://devdigest:devdigest@postgres:5432/devdigest
+      NODE_ENV: development
+      API_PORT: "3001"
+      WEB_PORT: "3000"
+      # The DB stores absolute clone paths, so clones are mounted at the same
+      # path as on the host — repos imported by `pnpm dev` keep working here.
+      DEVDIGEST_CLONE_DIR: ${DEVDIGEST_CLONES:-${PWD}/server/clones}
+      DEVDIGEST_SEED: ${DEVDIGEST_SEED:-true}
+    ports:
+      - "3001:3001"
+    volumes:
+      - ${DEVDIGEST_CLONES:-${PWD}/server/clones}:${DEVDIGEST_CLONES:-${PWD}/server/clones}
+      # Keys saved from the Settings UI (~/.devdigest/secrets.json), shared with the host.
+      - ${HOME}/.devdigest:/root/.devdigest
+
+  web:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      args:
+        # Called from the browser, so it must be a host URL, not http://api:3001.
+        NEXT_PUBLIC_API_BASE: http://localhost:3001
+    container_name: devdigest-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
 
 volumes:
   devdigest_pgdata:

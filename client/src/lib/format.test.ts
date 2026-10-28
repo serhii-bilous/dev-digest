@@ -5,7 +5,7 @@
  * review cost nothing, so both directions are pinned here.
  */
 import { describe, it, expect } from "vitest";
-import { formatCostUsd, formatTokenCount, EMPTY } from "./format";
+import { formatCostUsd, formatRunCost, formatTokenCount, EMPTY } from "./format";
 
 describe("formatCostUsd", () => {
   it("renders each cost band the way the design does", () => {
@@ -39,5 +39,16 @@ describe("formatTokenCount", () => {
     expect(formatTokenCount(9119)).toBe("9 119");
     expect(formatTokenCount(150)).toBe("150");
     expect(formatTokenCount(1234567)).toBe("1 234 567");
+  });
+});
+
+describe("formatRunCost", () => {
+  it("shows the label for subscription runs, never a dollar figure", () => {
+    expect(formatRunCost(null, "subscription")).toBe("Subscription");
+    expect(formatRunCost(0.5, "subscription", "Abo")).toBe("Abo");
+  });
+  it("falls back to formatCostUsd for api runs", () => {
+    expect(formatRunCost(0.014, "api")).toBe("$0.014");
+    expect(formatRunCost(null, "api")).toBe(EMPTY);
   });
 });

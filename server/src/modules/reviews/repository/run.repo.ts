@@ -1,9 +1,19 @@
 import { and, desc, eq, gte, inArray } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { AgentRunSummary, RunSummary, RunTrace } from '@devdigest/shared';
+import { billingFor } from '../../../platform/local-errors.js';
+import type { AgentRunSummary, LocalFailureReason, RunSummary, RunTrace } from '@devdigest/shared';
 
 // ---- in-flight / history --------------------------------------------------
+
+export type ActiveRun = {
+  run_id: string;
+  agent_id: string | null;
+  agent_name: string | null;
+  ran_at: string | null;
+  billing: 'api' | 'subscription';
+  failure_reason: LocalFailureReason | null;
+};
 
 /** In-flight runs for a PR (status='running') — the server-side source of
  *  truth for "which agents are running now". Joined with the agent name. */
@@ -11,10 +21,12 @@ export async function activeRunsForPull(
   db: Db,
   workspaceId: string,
   prId: string,
-): Promise<{ run_id: string; agent_id: string | null; agent_name: string | null; ran_at: string | null }[]> {
+): Promise<ActiveRun[]> {
   const rows = await db
     .select({
       id: t.agentRuns.id,
+      billing: t.agentRuns.billing,
+      failureReason: t.agentRuns.failureReason,
       agentId: t.agentRuns.agentId,
       ranAt: t.agentRuns.ranAt,
       agentName: t.agents.name,
@@ -33,6 +45,8 @@ export async function activeRunsForPull(
     agent_id: r.agentId,
     agent_name: r.agentName ?? null,
     ran_at: r.ranAt ? r.ranAt.toISOString() : null,
+    billing: r.billing,
+    failure_reason: r.failureReason,
   }));
 }
 
@@ -68,6 +82,9 @@ export async function listRunsForPull(
     critical_count: run.criticalCount,
     warning_count: run.warningCount,
     suggestion_count: run.suggestionCount,
+    billing: run.billing,
+    failure_reason: run.failureReason,
+    queued_for_local: false,
   }));
 }
 
@@ -117,6 +134,9 @@ export async function listRunsForAgent(
     critical_count: run.criticalCount,
     warning_count: run.warningCount,
     suggestion_count: run.suggestionCount,
+    billing: run.billing,
+    failure_reason: run.failureReason,
+    queued_for_local: false,
     pr_number: prNumber ?? null,
     pr_title: prTitle ?? null,
     source: run.source ?? null,
@@ -153,6 +173,21 @@ export async function cancelRunIfRunning(db: Db, runId: string): Promise<boolean
     .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.status, 'running')))
     .returning({ id: t.agentRuns.id });
   return rows.length > 0;
+}
+
+/**
+ * Row-lock the run and report whether it is still 'running'. Called first
+ * inside the persist transaction: a concurrent cancel's UPDATE then waits for
+ * the commit, and an already-cancelled run is detected before any review row
+ * is written (AC-33).
+ */
+export async function lockRunIfRunning(db: Db, runId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ status: t.agentRuns.status })
+    .from(t.agentRuns)
+    .where(eq(t.agentRuns.id, runId))
+    .for('update');
+  return row?.status === 'running';
 }
 
 /** On boot: any run still 'running' is orphaned (its process died / restarted),
@@ -204,6 +239,8 @@ export async function createAgentRun(
       prId: values.prId,
       provider: values.provider,
       model: values.model,
+      // Set at insert (not completion) so a failed Local run keeps the marker.
+      billing: billingFor(values.provider),
       status: 'running',
       source: 'local',
     })
@@ -217,8 +254,11 @@ export async function completeAgentRun(
   values: {
     status: 'done' | 'failed' | 'cancelled';
     durationMs: number;
-    tokensIn: number;
-    tokensOut: number;
+    /** null = the provider did not report usage (Local). Others pass numbers. */
+    tokensIn: number | null;
+    tokensOut: number | null;
+    /** Typed Local failure reason (AC-27); null/omitted otherwise. */
+    failureReason?: LocalFailureReason | null;
     /**
      * USD billed for this run. Omit (or pass null) on failed/cancelled runs and
      * whenever the model is unpriced — 0 would claim the review was free.
@@ -254,8 +294,11 @@ export async function completeAgentRun(
       warningCount: values.warningCount ?? null,
       suggestionCount: values.suggestionCount ?? null,
       error: values.error ?? null,
+      failureReason: values.failureReason ?? null,
     })
-    .where(eq(t.agentRuns.id, runId));
+    // Only a still-running row: never overwrite a run the user already cancelled
+    // (or the reaper already failed) with a late `done`/`failed`.
+    .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.status, 'running')));
 }
 
 /** Persist the WHOLE run log as ONE document. PK = runId → agent_runs. */
