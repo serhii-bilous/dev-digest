@@ -357,90 +357,90 @@ These deviate from the spec as first approved and are now reflected in the ACs:
 
 | ID | Story | Task | Test | Commit |
 |----|-------|------|------|--------|
-| AC-1 | US-1 | Step 6 | server/test/repos-stack.test.ts |  |
-| AC-2 | US-1 | Step 6 | server/test/repos-stack.test.ts |  |
-| AC-3 | US-1 | Step 4, 5, 6 | server/test/repo-stack-service.test.ts; server/test/reviews-compat.test.ts |  |
-| AC-4 | US-1 | Step 4 | server/test/stack-compat.test.ts |  |
-| AC-5 | US-5 | Step 4 | server/test/repo-stack-service.test.ts |  |
-| AC-6 | US-5 | Step 4 | server/test/repo-stack-service.test.ts; server/test/stack-compat.test.ts |  |
-| AC-7 | US-5 | Step 4 | server/test/repo-stack-service.test.ts |  |
-| AC-8 | US-5 | Step 4 | server/test/repo-stack-service.test.ts; server/test/stack-compat.test.ts |  |
-| AC-9 | US-5 | Step 4 | server/test/repo-stack-service.test.ts; server/test/stack-compat.test.ts |  |
-| AC-10 | US-2 | Step 1, 2, 5 | server/test/agents-repo-scope.test.ts |  |
-| AC-11 | US-2 | Step 5 | server/test/agents-repo-scope.test.ts |  |
-| AC-12 | US-2 | Step 5, 9 | server/test/agents-repo-scope.test.ts; client ConfigTab.test.tsx |  |
-| AC-13 | US-2 | Step 5 | server/test/agents-repo-scope.test.ts |  |
-| AC-14 | US-2 | Step 1, 5 | server/test/stack-aware-http.test.ts; server/test/agents-repo-scope.test.ts |  |
-| AC-15 | US-3 | Step 4 | server/test/stack-compat.test.ts |  |
-| AC-16 | US-5 | Step 4 | server/test/stack-compat.test.ts; server/test/repo-stack-service.test.ts |  |
-| AC-17 | US-3 | Step 4, 5 | server/test/agents-repo-scope.test.ts; server/test/stack-compat.test.ts |  |
-| AC-18 | US-4 | Step 2, 4, 5 | server/test/agents-repo-scope.test.ts; server/test/repo-stack-service.test.ts |  |
-| AC-18a | US-4 | Step 4, 6 | server/test/stack-compat.test.ts; server/test/reviews-compat.test.ts |  |
-| AC-19 | US-4 | Step 2 | server/test/stack-aware-migration.it.test.ts |  |
-| AC-20 | US-4 | Step 6 | server/test/reviews-compat.test.ts |  |
-| AC-21 | US-4 | Step 5 | server/test/agents-repo-scope.test.ts |  |
-| AC-22 | US-4 | Step 5, 8 | client AgentsListView.test.tsx; server/test/agents-repo-scope.test.ts |  |
-| AC-22a | US-4 | Step 8 | client AgentsListView.test.tsx |  |
-| AC-23 | US-4 | Step 7, 8 | client AgentsListView.test.tsx; client lib/hooks/agents.test.tsx |  |
-| AC-23a | US-4 | Step 8 | client AgentsListView.test.tsx |  |
-| AC-24 | US-4 | Step 2 | server/test/stack-aware-migration.it.test.ts |  |
-| AC-25 | US-3 | Step 5, 8 | client AgentsListView.test.tsx; server/test/agents-repo-scope.test.ts |  |
-| AC-25a | US-4 | Step 8 | client AgentsListView.test.tsx |  |
-| AC-26 | US-4 | Step 8 | client AgentsListView.test.tsx |  |
-| AC-26a | US-4 | Step 7 | client app-shell/hooks/useShellContext.test.tsx |  |
-| AC-27 | US-1 | Step 8 | client AgentsListView.test.tsx |  |
-| AC-28 | US-5 | Step 8 | client AgentsListView.test.tsx |  |
-| AC-29 | US-5 | Step 4, 8 | server/test/repo-stack-service.test.ts; client AgentsListView.retry.test.tsx |  |
-| AC-30 | US-5 | Step 8 | client AgentsListView.test.tsx; client AgentsListView.retry.test.tsx |  |
-| AC-31 | US-2 | Step 5, 9 | client agents/[id]/page.test.tsx; client AgentHeader.test.tsx; server/test/agents-repo-scope.test.ts |  |
-| AC-32 | US-3 | Step 6 | server/test/reviews-compat.test.ts |  |
-| AC-33 | US-3 | Step 10 | client RunReviewDropdown.test.tsx |  |
-| AC-34 | US-4 | Step 6, 10 | client RunReviewDropdown.test.tsx; server/test/reviews-compat.test.ts |  |
-| AC-35 | US-3 | Step 6 | server/test/reviews-compat.test.ts; server/test/stack-aware-http.test.ts; client RunReviewDropdown.conflict.test.tsx |  |
-| AC-36 | US-3 | Step 6, 10 | server/test/reviews-compat.test.ts; client RunReviewDropdown.test.tsx |  |
-| AC-37 | US-5 | Step 4 | server/test/reviews-compat.test.ts |  |
-| AC-38 | US-5 | Step 4 | server/test/repo-stack-service.test.ts |  |
-| AC-39 | US-5 | Step 4, 6 | server/test/reviews-compat.test.ts |  |
-| AC-40 | US-5 | Step 4 | server/test/stack-compat.test.ts |  |
-| AC-41 | US-5 | Step 4 | server/test/stack-compat.test.ts |  |
-| AC-42 | US-5 | Step 4 | server/test/stack-compat.test.ts; server/test/repo-stack-service.test.ts |  |
-| AC-43 | US-5 | Step 4, 6 | server/test/repos-stack.test.ts; server/test/repo-stack-service.test.ts |  |
-| AC-44 | US-5 | Step 4 | server/test/repo-stack-service.test.ts |  |
-| AC-45 | US-5 | Step 7, 8 | client AgentsListView.retry.test.tsx |  |
-| AC-46 | US-6 | Step 3 | server/test/seed-stack-aware.it.test.ts |  |
-| AC-47 | US-6 | Step 3 | server/test/seed-stack-aware.it.test.ts |  |
-| AC-47a | US-6 | Step 2, 3 | server/test/stack-aware-migration.it.test.ts; server/test/seed-stack-aware.it.test.ts |  |
-| AC-47b | US-6 | Step 3 | server/test/seed-stack-aware.it.test.ts |  |
-| AC-47c | US-4 | Step 3 | server/test/seed-stack-aware.it.test.ts |  |
-| AC-47d | US-4 | Step 3, 13 | server/test/seed-stack-aware.it.test.ts; e2e 08-agents-sections.flow.json (not run) |  |
-| AC-48 | US-6 | Step 3 | server/test/seed-prompts-python.test.ts |  |
-| AC-49 | US-6 | Step 3 | server/test/seed-prompts-python.test.ts |  |
-| AC-50 | US-6 | Step 3 | server/test/seed-prompts-python.test.ts |  |
-| AC-51 | US-6 | Step 3 | server/test/seed-prompts-python.test.ts |  |
-| AC-52 | US-6 | Step 3 | server/test/seed-stack-aware.it.test.ts |  |
-| AC-53 | US-6 | Step 2 | server/test/stack-aware-migration.it.test.ts |  |
-| AC-54 | US-7 | Step 12 | mcp-server/src/tools/list-agents.test.ts |  |
-| AC-55 | US-7 | Step 12 | mcp-server/src/tools/list-agents.test.ts; mcp-server/src/resolve.test.ts |  |
-| AC-56 | US-7 | Step 12 | mcp-server/src/tools/list-agents.test.ts |  |
-| AC-57 | US-7 | Step 12 | mcp-server/src/tools/run-agent-on-pr.test.ts |  |
-| AC-58 | US-8 | Step 7, 8 | client LanguageBadge.test.tsx; client AgentCard.test.tsx |  |
-| AC-59 | US-8 | Step 7, 8 | client LanguageBadge.test.tsx; client AgentCard.test.tsx |  |
-| AC-60 | US-8 | Step 8, 13 | client AgentCard.test.tsx; e2e 08-agents-sections.flow.json (not run) |  |
-| AC-61 | US-8 | Step 9 | client AgentHeader.test.tsx |  |
-| AC-62 | US-8 | Step 9 | client AgentEditor.languages.test.tsx; client lib/hooks/agents.test.tsx |  |
-| AC-63 | US-8 | Step 7 | client LanguageBadge.test.tsx |  |
-| NFR-1 | US-5 | Step 4 | server/test/repo-stack-service.test.ts |  |
-| NFR-2 | US-1 | Step 4 | server/test/repo-stack-service.test.ts |  |
-| NFR-3 | US-1 | Step 4 | server/test/repo-stack-service.test.ts |  |
-| NFR-4 | US-5 | Step 4, 6 | server/test/repo-stack-service.test.ts; server/test/repos-stack.test.ts |  |
-| NFR-5 | US-1 | Step 6 | server/test/reviews-compat.test.ts |  |
-| NFR-6 | US-1 | Step 1, 4 | server/test/repo-stack-service.test.ts; server/test/stack-compat.test.ts |  |
-| NFR-7 | US-4 | Step 4, 5 | server/test/repo-stack-service.test.ts; server/test/agents-repo-scope.test.ts |  |
-| NFR-8 | US-1 | Step 7, 8 | client LanguageBadge.test.tsx; client AgentsListView.retry.test.tsx |  |
-| NFR-9 | US-4 | Step 7, 8, 9, 10 | client AgentsListView.test.tsx; client AgentsListView.retry.test.tsx; client RunReviewDropdown.test.tsx; client AgentHeader.test.tsx (partial — see open question) |  |
-| NFR-10 | US-3 | Step 4, 5, 6, 7–12 | all suites hermetic; DB lane only migration + seed .it |  |
-| NFR-11 | US-5 | Step 4 | server/test/repo-stack-service.test.ts |  |
-| NFR-12 | US-3 | Step 6 | server/test/run-executor.test.ts |  |
+| AC-1 | US-1 | Step 6 | server/test/repos-stack.test.ts | f5664ba |
+| AC-2 | US-1 | Step 6 | server/test/repos-stack.test.ts | f5664ba |
+| AC-3 | US-1 | Step 4, 5, 6 | server/test/repo-stack-service.test.ts; server/test/reviews-compat.test.ts | f5664ba |
+| AC-4 | US-1 | Step 4 | server/test/stack-compat.test.ts | f5664ba |
+| AC-5 | US-5 | Step 4 | server/test/repo-stack-service.test.ts | f5664ba |
+| AC-6 | US-5 | Step 4 | server/test/repo-stack-service.test.ts; server/test/stack-compat.test.ts | f5664ba |
+| AC-7 | US-5 | Step 4 | server/test/repo-stack-service.test.ts | f5664ba |
+| AC-8 | US-5 | Step 4 | server/test/repo-stack-service.test.ts; server/test/stack-compat.test.ts | f5664ba |
+| AC-9 | US-5 | Step 4 | server/test/repo-stack-service.test.ts; server/test/stack-compat.test.ts | f5664ba |
+| AC-10 | US-2 | Step 1, 2, 5 | server/test/agents-repo-scope.test.ts | f5664ba |
+| AC-11 | US-2 | Step 5 | server/test/agents-repo-scope.test.ts | f5664ba |
+| AC-12 | US-2 | Step 5, 9 | server/test/agents-repo-scope.test.ts; client ConfigTab.test.tsx | f5664ba |
+| AC-13 | US-2 | Step 5 | server/test/agents-repo-scope.test.ts | f5664ba |
+| AC-14 | US-2 | Step 1, 5 | server/test/stack-aware-http.test.ts; server/test/agents-repo-scope.test.ts | f5664ba |
+| AC-15 | US-3 | Step 4 | server/test/stack-compat.test.ts | f5664ba |
+| AC-16 | US-5 | Step 4 | server/test/stack-compat.test.ts; server/test/repo-stack-service.test.ts | f5664ba |
+| AC-17 | US-3 | Step 4, 5 | server/test/agents-repo-scope.test.ts; server/test/stack-compat.test.ts | f5664ba |
+| AC-18 | US-4 | Step 2, 4, 5 | server/test/agents-repo-scope.test.ts; server/test/repo-stack-service.test.ts | f5664ba |
+| AC-18a | US-4 | Step 4, 6 | server/test/stack-compat.test.ts; server/test/reviews-compat.test.ts | f5664ba |
+| AC-19 | US-4 | Step 2 | server/test/stack-aware-migration.it.test.ts | f5664ba |
+| AC-20 | US-4 | Step 6 | server/test/reviews-compat.test.ts | f5664ba |
+| AC-21 | US-4 | Step 5 | server/test/agents-repo-scope.test.ts | f5664ba |
+| AC-22 | US-4 | Step 5, 8 | client AgentsListView.test.tsx; server/test/agents-repo-scope.test.ts | f5664ba |
+| AC-22a | US-4 | Step 8 | client AgentsListView.test.tsx | f5664ba |
+| AC-23 | US-4 | Step 7, 8 | client AgentsListView.test.tsx; client lib/hooks/agents.test.tsx | f5664ba |
+| AC-23a | US-4 | Step 8 | client AgentsListView.test.tsx | f5664ba |
+| AC-24 | US-4 | Step 2 | server/test/stack-aware-migration.it.test.ts | f5664ba |
+| AC-25 | US-3 | Step 5, 8 | client AgentsListView.test.tsx; server/test/agents-repo-scope.test.ts | f5664ba |
+| AC-25a | US-4 | Step 8 | client AgentsListView.test.tsx | f5664ba |
+| AC-26 | US-4 | Step 8 | client AgentsListView.test.tsx | f5664ba |
+| AC-26a | US-4 | Step 7 | client app-shell/hooks/useShellContext.test.tsx | f5664ba |
+| AC-27 | US-1 | Step 8 | client AgentsListView.test.tsx | f5664ba |
+| AC-28 | US-5 | Step 8 | client AgentsListView.test.tsx | f5664ba |
+| AC-29 | US-5 | Step 4, 8 | server/test/repo-stack-service.test.ts; client AgentsListView.retry.test.tsx | f5664ba |
+| AC-30 | US-5 | Step 8 | client AgentsListView.test.tsx; client AgentsListView.retry.test.tsx | f5664ba |
+| AC-31 | US-2 | Step 5, 9 | client agents/[id]/page.test.tsx; client AgentHeader.test.tsx; server/test/agents-repo-scope.test.ts | f5664ba |
+| AC-32 | US-3 | Step 6 | server/test/reviews-compat.test.ts | f5664ba |
+| AC-33 | US-3 | Step 10 | client RunReviewDropdown.test.tsx | f5664ba |
+| AC-34 | US-4 | Step 6, 10 | client RunReviewDropdown.test.tsx; server/test/reviews-compat.test.ts | f5664ba |
+| AC-35 | US-3 | Step 6 | server/test/reviews-compat.test.ts; server/test/stack-aware-http.test.ts; client RunReviewDropdown.conflict.test.tsx | f5664ba |
+| AC-36 | US-3 | Step 6, 10 | server/test/reviews-compat.test.ts; client RunReviewDropdown.test.tsx | f5664ba |
+| AC-37 | US-5 | Step 4 | server/test/reviews-compat.test.ts | f5664ba |
+| AC-38 | US-5 | Step 4 | server/test/repo-stack-service.test.ts | f5664ba |
+| AC-39 | US-5 | Step 4, 6 | server/test/reviews-compat.test.ts | f5664ba |
+| AC-40 | US-5 | Step 4 | server/test/stack-compat.test.ts | f5664ba |
+| AC-41 | US-5 | Step 4 | server/test/stack-compat.test.ts | f5664ba |
+| AC-42 | US-5 | Step 4 | server/test/stack-compat.test.ts; server/test/repo-stack-service.test.ts | f5664ba |
+| AC-43 | US-5 | Step 4, 6 | server/test/repos-stack.test.ts; server/test/repo-stack-service.test.ts | f5664ba |
+| AC-44 | US-5 | Step 4 | server/test/repo-stack-service.test.ts | f5664ba |
+| AC-45 | US-5 | Step 7, 8 | client AgentsListView.retry.test.tsx | f5664ba |
+| AC-46 | US-6 | Step 3 | server/test/seed-stack-aware.it.test.ts | f5664ba |
+| AC-47 | US-6 | Step 3 | server/test/seed-stack-aware.it.test.ts | f5664ba |
+| AC-47a | US-6 | Step 2, 3 | server/test/stack-aware-migration.it.test.ts; server/test/seed-stack-aware.it.test.ts | f5664ba |
+| AC-47b | US-6 | Step 3 | server/test/seed-stack-aware.it.test.ts | f5664ba |
+| AC-47c | US-4 | Step 3 | server/test/seed-stack-aware.it.test.ts | f5664ba |
+| AC-47d | US-4 | Step 3, 13 | server/test/seed-stack-aware.it.test.ts; e2e 08-agents-sections.flow.json (not run) | f5664ba |
+| AC-48 | US-6 | Step 3 | server/test/seed-prompts-python.test.ts | f5664ba |
+| AC-49 | US-6 | Step 3 | server/test/seed-prompts-python.test.ts | f5664ba |
+| AC-50 | US-6 | Step 3 | server/test/seed-prompts-python.test.ts | f5664ba |
+| AC-51 | US-6 | Step 3 | server/test/seed-prompts-python.test.ts | f5664ba |
+| AC-52 | US-6 | Step 3 | server/test/seed-stack-aware.it.test.ts | f5664ba |
+| AC-53 | US-6 | Step 2 | server/test/stack-aware-migration.it.test.ts | f5664ba |
+| AC-54 | US-7 | Step 12 | mcp-server/src/tools/list-agents.test.ts | f5664ba |
+| AC-55 | US-7 | Step 12 | mcp-server/src/tools/list-agents.test.ts; mcp-server/src/resolve.test.ts | f5664ba |
+| AC-56 | US-7 | Step 12 | mcp-server/src/tools/list-agents.test.ts | f5664ba |
+| AC-57 | US-7 | Step 12 | mcp-server/src/tools/run-agent-on-pr.test.ts | f5664ba |
+| AC-58 | US-8 | Step 7, 8 | client LanguageBadge.test.tsx; client AgentCard.test.tsx | f5664ba |
+| AC-59 | US-8 | Step 7, 8 | client LanguageBadge.test.tsx; client AgentCard.test.tsx | f5664ba |
+| AC-60 | US-8 | Step 8, 13 | client AgentCard.test.tsx; e2e 08-agents-sections.flow.json (not run) | f5664ba |
+| AC-61 | US-8 | Step 9 | client AgentHeader.test.tsx | f5664ba |
+| AC-62 | US-8 | Step 9 | client AgentEditor.languages.test.tsx; client lib/hooks/agents.test.tsx | f5664ba |
+| AC-63 | US-8 | Step 7 | client LanguageBadge.test.tsx | f5664ba |
+| NFR-1 | US-5 | Step 4 | server/test/repo-stack-service.test.ts | f5664ba |
+| NFR-2 | US-1 | Step 4 | server/test/repo-stack-service.test.ts | f5664ba |
+| NFR-3 | US-1 | Step 4 | server/test/repo-stack-service.test.ts | f5664ba |
+| NFR-4 | US-5 | Step 4, 6 | server/test/repo-stack-service.test.ts; server/test/repos-stack.test.ts | f5664ba |
+| NFR-5 | US-1 | Step 6 | server/test/reviews-compat.test.ts | f5664ba |
+| NFR-6 | US-1 | Step 1, 4 | server/test/repo-stack-service.test.ts; server/test/stack-compat.test.ts | f5664ba |
+| NFR-7 | US-4 | Step 4, 5 | server/test/repo-stack-service.test.ts; server/test/agents-repo-scope.test.ts | f5664ba |
+| NFR-8 | US-1 | Step 7, 8 | client LanguageBadge.test.tsx; client AgentsListView.retry.test.tsx | f5664ba |
+| NFR-9 | US-4 | Step 7, 8, 9, 10 | client AgentsListView.test.tsx; client AgentsListView.retry.test.tsx; client RunReviewDropdown.test.tsx; client AgentHeader.test.tsx (partial — see open question) | f5664ba |
+| NFR-10 | US-3 | Step 4, 5, 6, 7–12 | all suites hermetic; DB lane only migration + seed .it | f5664ba |
+| NFR-11 | US-5 | Step 4 | server/test/repo-stack-service.test.ts | f5664ba |
+| NFR-12 | US-3 | Step 6 | server/test/run-executor.test.ts | f5664ba |
 
 ## Recommendations / follow-ups
 
