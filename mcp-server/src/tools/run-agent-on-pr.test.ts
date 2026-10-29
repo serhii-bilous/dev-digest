@@ -82,6 +82,32 @@ describe('run_agent_on_pr', () => {
     expect(result.content[0].text).toContain('llm timeout');
   });
 
+  it('surfaces a "<reason>: <message>" run error such as rate_limited', async () => {
+    const client = stubClient({
+      get: async (path: string) => {
+        if (path === '/repos') return [REPO];
+        if (path === `/repos/${REPO.id}/pulls`) return [PR];
+        if (path === `/pulls/${PR.id}/runs`) {
+          return [
+            {
+              run_id: RUN_ID,
+              status: 'failed',
+              error: "rate_limited: You've hit your session limit · resets 3:45pm",
+            },
+          ];
+        }
+        throw new Error(`unexpected GET ${path}`);
+      },
+      post: async () => ({ pr_id: PR.id, runs: [{ run_id: RUN_ID, agent_id: AGENT_ID, agent_name: 'x' }], reviews: [] }),
+    });
+    const handler = captureHandler(registerRunAgentOnPrTool, client);
+
+    const result = await handler(args);
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('rate_limited');
+  });
+
   it('returns isError:true when the run was cancelled', async () => {
     const client = stubClient({
       get: async (path: string) => {

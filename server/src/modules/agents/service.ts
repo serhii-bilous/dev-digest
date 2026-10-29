@@ -10,6 +10,8 @@ import type {
   Provider,
   ReviewStrategy,
 } from '@devdigest/shared';
+import { LOCAL_MODEL_ALIASES } from '@devdigest/shared';
+import { ValidationError } from '../../platform/errors.js';
 import { AgentsRepository, type SkillLinkInput } from './repository.js';
 import { toAgentDto, toAgentSkillDetail, toAgentVersionDto } from './helpers.js';
 import { buildAgentStats } from './stats.js';
@@ -98,6 +100,20 @@ export class AgentsService {
     id: string,
     patch: UpdateAgentInput,
   ): Promise<Agent | undefined> {
+    // A partial PUT can't be checked by the body schema alone: validate the
+    // EFFECTIVE provider+model (patch over stored) so a local agent never
+    // stores a non-alias model (AC-10). Nothing is written on rejection.
+    if (patch.provider !== undefined || patch.model !== undefined) {
+      const current = await this.repo.getById(workspaceId, id);
+      if (!current) return undefined;
+      const provider = patch.provider ?? current.provider;
+      const model = patch.model ?? current.model;
+      if (provider === 'local' && !(LOCAL_MODEL_ALIASES as readonly string[]).includes(model)) {
+        throw new ValidationError(
+          `Local agents must use one of: ${LOCAL_MODEL_ALIASES.join(', ')}`,
+        );
+      }
+    }
     const row = await this.repo.update(workspaceId, id, {
       ...(patch.name !== undefined ? { name: patch.name } : {}),
       ...(patch.description !== undefined ? { description: patch.description } : {}),
@@ -237,7 +253,7 @@ export class AgentsService {
    */
   async listModels(provider: Provider): Promise<ModelInfo[]> {
     try {
-      const llm = await this.container.llm(provider);
+      const llm = await this.container.llmFor(provider);
       return await llm.listModels();
     } catch {
       return [];

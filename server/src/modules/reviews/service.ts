@@ -67,12 +67,18 @@ export class ReviewService {
 
   /** In-flight runs for a PR (server-side source of truth, survives reload). */
   async activeRuns(workspaceId: string, prId: string) {
-    return this.repo.activeRunsForPull(workspaceId, prId);
+    const rows = await this.repo.activeRunsForPull(workspaceId, prId);
+    return rows.map((r) => ({ ...r, queued_for_local: this.container.localGate.isQueued(r.run_id) }));
   }
 
   /** All runs for a PR (any status), newest first — the run history (incl. failures). */
   async listRuns(workspaceId: string, prId: string) {
-    return this.repo.listRunsForPull(workspaceId, prId);
+    const rows = await this.repo.listRunsForPull(workspaceId, prId);
+    // In-memory queue state (AC-37): only a run still waiting for a Local slot.
+    return rows.map((r) => ({
+      ...r,
+      queued_for_local: r.status === 'running' && this.container.localGate.isQueued(r.run_id),
+    }));
   }
 
   /** Delete one run from the history (+ its trace). */

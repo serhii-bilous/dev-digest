@@ -3,9 +3,12 @@ import type {
   ConnTestProvider,
   ConnTestResult,
   SecretsStatus,
+  LocalStatus,
   Settings,
   SettingsUpdate,
 } from '@devdigest/shared';
+import { LocalProviderError, localUnavailableError, type LocalLogger } from '../../platform/local-errors.js';
+import { ValidationError } from '../../platform/errors.js';
 import { SettingsRepository } from './repository.js';
 import { GITHUB_PROVIDER, SECRET_KEY_BY_PROVIDER } from './constants.js';
 import { rowsToSettings } from './helpers.js';
@@ -54,7 +57,11 @@ export class SettingsService {
    * inline, so every path returns `{ ok: false, message }` rather than throwing
    * into the error handler.
    */
-  async testConnection(provider: ConnTestProvider, key?: string): Promise<ConnTestResult> {
+  async testConnection(
+    provider: ConnTestProvider,
+    key?: string,
+    logger?: LocalLogger,
+  ): Promise<ConnTestResult> {
     try {
       // A supplied key is persisted (BYO key) BEFORE the test, so the test
       // reflects — and the rest of the app can use — the new value.
@@ -70,11 +77,57 @@ export class SettingsService {
         const login = await gh.currentLogin();
         return { provider, ok: true, message: `Connected as @${login}` };
       }
+      if (provider === 'local') {
+        return await this.testLocal(logger);
+      }
       const llm = await this.container.llm(provider);
       const models = await llm.listModels();
       return { provider, ok: true, message: `OK — ${models.length} models available` };
     } catch (err) {
+      if (err instanceof LocalProviderError) {
+        return { provider, ok: false, message: err.message, reason: err.reason };
+      }
       return { provider, ok: false, message: (err as Error).message };
     }
+  }
+
+  /** Local availability (CLI version + token presence); no model call. */
+  localStatus(): Promise<LocalStatus> {
+    return this.container.localStatus();
+  }
+
+  /**
+   * Persist the Local OAuth token. Stored via the secrets store only; no model
+   * call is made and the value is never echoed.
+   */
+  async saveLocalToken(key: string): Promise<LocalStatus> {
+    if (!this.container.secrets.set) throw new ValidationError('Secrets backend is read-only');
+    await this.container.secrets.set(SECRET_KEY_BY_PROVIDER.local, key);
+    this.container.invalidateSecretCaches();
+    return this.container.localStatus();
+  }
+
+  /** One minimal CLI call through the slot gate. Failures are results, never throws. */
+  private async testLocal(logger?: LocalLogger): Promise<ConnTestResult> {
+    const status = await this.container.localStatus();
+    if (!status.available) {
+      const reason = status.reason ?? 'cli_missing';
+      return {
+        provider: 'local',
+        ok: false,
+        reason,
+        message: localUnavailableError(reason).message,
+      };
+    }
+    const llm = await this.container.llmFor('local', { runId: 'conn-test', logger });
+    await llm.complete({
+      model: 'haiku',
+      messages: [{ role: 'user', content: 'Reply with the single word: ok' }],
+    });
+    return {
+      provider: 'local',
+      ok: true,
+      message: `OK — Claude Code CLI ${status.cli_version ?? ''}`.trim(),
+    };
   }
 }

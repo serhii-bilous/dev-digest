@@ -7,6 +7,7 @@ import { useTestConnection, useSecretsStatus } from "../../../../../../../lib/ho
 import { ApiError } from "../../../../../../../lib/api";
 import type { ConnTestProvider } from "../../../../../../../lib/types";
 import { SectionTitle } from "../SectionTitle";
+import { LocalProviderRow } from "./_components/LocalProviderRow";
 import { KEY_ROWS } from "./constants";
 import { s } from "./styles";
 
@@ -93,6 +94,7 @@ export function SettingsApiKeys() {
           configured={status?.[row.provider]}
         />
       ))}
+      <LocalProviderRow />
     </div>
   );
 }

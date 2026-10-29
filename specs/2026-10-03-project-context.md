@@ -1,6 +1,6 @@
 # Spec: Project Context   |   Spec ID: SPEC-2026-10-03-project-context   |   Status: draft
 Supersedes: none
-Plan: none yet
+Plan: docs/plans/2026-10-03-project-context.md
 Modules touched: server, client, reviewer-core, `@devdigest/shared`
 
 ## Problem & why

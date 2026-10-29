@@ -3,10 +3,11 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Button, Modal, FormField, TextInput, SelectInput, Textarea } from "@devdigest/ui";
+import { Button, Modal, FormField, TextInput, Textarea } from "@devdigest/ui";
 import type { Provider } from "@devdigest/shared";
+import { ProviderSelect, LOCAL_DEFAULT_MODEL } from "@/components/provider-select";
 import { useCreateAgent } from "../../../../../../lib/hooks/agents";
-import { DEFAULT_MODEL, DEFAULT_PROVIDER, MODAL_WIDTH, PROVIDER_OPTIONS } from "./constants";
+import { DEFAULT_MODEL, DEFAULT_PROVIDER, MODAL_WIDTH } from "./constants";
 import { s } from "./styles";
 
 /** Create-agent modal — name/description/provider/model/system-prompt. */
@@ -19,6 +20,13 @@ export function CreateAgentModal({ onClose }: { onClose: () => void }) {
   const [provider, setProvider] = React.useState<Provider>(DEFAULT_PROVIDER);
   const [model, setModel] = React.useState(DEFAULT_MODEL);
   const [systemPrompt, setSystemPrompt] = React.useState(t("create.defaultSystemPrompt"));
+
+  // Local only accepts the Claude aliases; keep the model valid when switching.
+  const onProviderChange = (p: Provider) => {
+    setProvider(p);
+    if (p === "local") setModel(LOCAL_DEFAULT_MODEL);
+    else if (provider === "local") setModel(DEFAULT_MODEL);
+  };
 
   const submit = async () => {
     const agent = await create.mutateAsync({
@@ -61,11 +69,7 @@ export function CreateAgentModal({ onClose }: { onClose: () => void }) {
           />
         </FormField>
         <FormField label={t("create.fields.provider")}>
-          <SelectInput
-            value={provider}
-            onChange={(v) => setProvider(v as Provider)}
-            options={[...PROVIDER_OPTIONS]}
-          />
+          <ProviderSelect value={provider} onChange={onProviderChange} />
         </FormField>
         <FormField label={t("create.fields.model")}>
           <TextInput value={model} onChange={setModel} mono />

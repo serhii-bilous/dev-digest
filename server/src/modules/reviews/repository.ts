@@ -1,6 +1,6 @@
 import type { Db, DbOrTx } from '../../db/client.js';
 import type * as t from '../../db/schema.js';
-import type { AgentRunSummary, Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
+import type { AgentRunSummary, Finding, Intent, LocalFailureReason, RunSummary, RunTrace } from '@devdigest/shared';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
@@ -107,7 +107,7 @@ export class ReviewRepository {
   activeRunsForPull(
     workspaceId: string,
     prId: string,
-  ): Promise<{ run_id: string; agent_id: string | null; agent_name: string | null; ran_at: string | null }[]> {
+  ): Promise<runRepo.ActiveRun[]> {
     return runRepo.activeRunsForPull(this.db, workspaceId, prId);
   }
 
@@ -161,6 +161,11 @@ export class ReviewRepository {
   /** Delete one agent run (+ its trace via FK cascade). Workspace-scoped. */
   deleteAgentRun(workspaceId: string, runId: string): Promise<boolean> {
     return runRepo.deleteAgentRun(this.db, workspaceId, runId);
+  }
+
+  /** Row-lock the run; true when it is still 'running'. Use inside the persist transaction. */
+  lockRunIfRunning(runId: string, tx?: DbOrTx): Promise<boolean> {
+    return runRepo.lockRunIfRunning(tx ?? this.db, runId);
   }
 
   /** Mark a still-running run as cancelled (no-op if it already finished). */
@@ -229,8 +234,10 @@ export class ReviewRepository {
     values: {
       status: 'done' | 'failed' | 'cancelled';
       durationMs: number;
-      tokensIn: number;
-      tokensOut: number;
+      tokensIn: number | null;
+      tokensOut: number | null;
+      /** Typed Local failure reason (AC-27); null/omitted otherwise. */
+      failureReason?: LocalFailureReason | null;
       /**
        * USD billed for this run. Omit (or pass null) on failed/cancelled runs and
        * whenever the model is unpriced — 0 would claim the review was free.

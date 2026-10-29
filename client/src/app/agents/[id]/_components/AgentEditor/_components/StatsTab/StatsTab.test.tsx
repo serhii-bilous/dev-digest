@@ -56,6 +56,8 @@ const STATS: AgentStats = {
       pr_number: 900,
       pr_title: "Stats PR",
       source: "local",
+      billing: "api",
+      queued_for_local: false,
     },
   ],
 };
@@ -103,5 +105,16 @@ describe("StatsTab (smoke)", () => {
     expect(screen.getAllByText("No runs yet. Run a review with this agent to see stats here.")).toHaveLength(2);
     expect(screen.queryByText("secret-leakage-gate")).not.toBeInTheDocument();
     expect(screen.queryByText("View trace")).not.toBeInTheDocument();
+  });
+});
+
+describe("StatsTab — subscription runs", () => {
+  it("shows Subscription in the run history cost cell", () => {
+    statsData = {
+      ...STATS,
+      run_history: [{ ...STATS.run_history[0]!, billing: "subscription", cost_usd: null }],
+    };
+    renderWithIntl(<StatsTab agentId="ag1" />);
+    expect(screen.getByText("Subscription")).toBeInTheDocument();
   });
 });

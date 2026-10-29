@@ -1,7 +1,10 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count} skills"
+    "skillCount": "{count} skills",
+    "localUnavailable": "Local unavailable",
+    "localUnavailableCli": "Local unavailable: CLI not found",
+    "localUnavailableToken": "Local unavailable: token not configured"
   },
   "list": {
     "breadcrumbLab": "Skills Lab",
@@ -86,7 +89,8 @@
     "save": "Save agent",
     "saving": "Saving…",
     "saved": "Saved (v{version})",
-    "savedToast": "Agent saved (v{version})"
+    "savedToast": "Agent saved (v{version})",
+    "localWarning": "Local (Claude Code) cannot run reviews right now. {reason}. The stored model is kept."
   },
   "skills": {
     "title": "Skills",
@@ -107,6 +111,7 @@
     "findingsByCategory": "Findings by category",
     "findingsBySeverity": "Findings by severity",
     "runHistory": "Run history",
+    "subscription": "Subscription",
     "viewTrace": "View trace",
     "noSkillsUsed": "No skills were used in this window.",
     "noRuns": "No runs yet. Run a review with this agent to see stats here.",
@@ -130,5 +135,10 @@
       "warning": "Warning",
       "suggestion": "Suggestion"
     }
+  },
+  "provider": {
+    "local": "Local (Claude Code)",
+    "unavailableCli": "Unavailable: Claude Code CLI not found",
+    "unavailableToken": "Unavailable: token not configured"
   }
 }

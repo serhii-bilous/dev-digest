@@ -5,9 +5,11 @@ import { useTranslations } from "next-intl";
 import { FormField, TextInput, SelectInput, SearchableSelect, Textarea, Toggle, Button } from "@devdigest/ui";
 import type { Agent, CiFailOn, Provider, ReviewStrategy } from "@devdigest/shared";
 import { useUpdateAgent, useProviderModels } from "../../../../../../../lib/hooks/agents";
+import { ProviderSelect, useLocalUnavailableText, LOCAL_DEFAULT_MODEL } from "@/components/provider-select";
+import { useLocalStatus } from "@/lib/hooks/local";
 import { useToast } from "../../../../../../../lib/toast";
 import { toModelOptions } from "../../../../../../../lib/model-label";
-import { CI_FAIL_ON_VALUES, OUTPUT_SCHEMA_VALUE, PROVIDER_OPTIONS, STRATEGY_VALUES } from "./constants";
+import { CI_FAIL_ON_VALUES, DEFAULT_MODEL, OUTPUT_SCHEMA_VALUE, STRATEGY_VALUES } from "./constants";
 import { s } from "./styles";
 
 /** Config tab — name/description/provider/model/system-prompt + enabled toggle. */
@@ -39,6 +41,8 @@ export function ConfigTab({ agent }: { agent: Agent }) {
   }, [agent.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: models } = useProviderModels(provider);
+  const { data: localStatus } = useLocalStatus();
+  const localReason = useLocalUnavailableText(localStatus);
   // Show the price (USD per 1M in/out tokens) in the label when the provider
   // exposes it (OpenRouter) so a cheap model is easy to pick; value stays the id.
   const modelOptions = toModelOptions(models);
@@ -51,6 +55,14 @@ export function ConfigTab({ agent }: { agent: Agent }) {
   // Friendly labels for the strategy select (values come from constants).
   const strategyOptions = STRATEGY_VALUES.map((v) => ({ value: v, label: t(`config.strategyOptions.${v}`) }));
   const ciFailOnOptions = CI_FAIL_ON_VALUES.map((v) => ({ value: v, label: t(`config.ciFailOnOptions.${v}`) }));
+
+  // Local only accepts the Claude aliases, so keep the model valid when switching.
+  // Only user-initiated switches reset it; an agent already on Local keeps its stored model.
+  const onProviderChange = (p: Provider) => {
+    if (p === "local" && provider !== "local") setModel(LOCAL_DEFAULT_MODEL);
+    else if (p !== "local" && provider === "local") setModel(agent.provider !== "local" ? agent.model : DEFAULT_MODEL);
+    setProvider(p);
+  };
 
   const save = () =>
     update.mutate(
@@ -91,11 +103,12 @@ export function ConfigTab({ agent }: { agent: Agent }) {
         <TextInput value={description} onChange={setDescription} />
       </FormField>
       <FormField label={t("config.provider")}>
-        <SelectInput
-          value={provider}
-          onChange={(v) => setProvider(v as Provider)}
-          options={[...PROVIDER_OPTIONS]}
-        />
+        <ProviderSelect value={provider} onChange={onProviderChange} />
+        {provider === "local" && localReason && (
+          <div role="alert" style={s.localWarning}>
+            {t("config.localWarning", { reason: localReason })}
+          </div>
+        )}
       </FormField>
       <FormField
         label={t("config.model")}

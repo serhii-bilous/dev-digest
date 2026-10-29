@@ -12,7 +12,7 @@ export const agents = pgTable('agents', {
     .references(() => workspaces.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description').notNull().default(''),
-  provider: text('provider', { enum: ['openai', 'anthropic', 'openrouter'] }).notNull(),
+  provider: text('provider', { enum: ['openai', 'anthropic', 'openrouter', 'local'] }).notNull(),
   model: text('model').notNull(),
   systemPrompt: text('system_prompt').notNull(),
   outputSchema: jsonb('output_schema'),

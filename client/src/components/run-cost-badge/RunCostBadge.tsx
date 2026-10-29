@@ -5,7 +5,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { formatCostUsd, formatTokenCount } from "../../lib/format";
+import type { Billing } from "@devdigest/shared";
+import { formatRunCost, formatTokenCount } from "../../lib/format";
 
 interface RunCostBadgeProps {
   /** USD for the run. Null when unpriced or the run never reached the model. */
@@ -16,15 +17,19 @@ interface RunCostBadgeProps {
   variant?: "compact" | "withTokens";
   /** Total tokens (in + out). Required by `withTokens`, ignored by `compact`. */
   tokens?: number | null;
+  /** `subscription` renders the "Subscription" label instead of a dollar figure. */
+  billing?: Billing | null;
 }
 
-export function RunCostBadge({ cost, variant = "compact", tokens }: RunCostBadgeProps) {
+export function RunCostBadge({ cost, variant = "compact", tokens, billing }: RunCostBadgeProps) {
   const t = useTranslations("runs");
+  const isSub = billing === "subscription";
+  const costText = formatRunCost(cost, billing, t("cost.subscription"));
 
   if (variant === "compact") {
     return (
-      <span className="tnum" style={{ color: cost == null ? "var(--text-muted)" : undefined }}>
-        {formatCostUsd(cost)}
+      <span className="tnum" style={{ color: cost == null && !isSub ? "var(--text-muted)" : undefined }}>
+        {costText}
       </span>
     );
   }
@@ -33,14 +38,14 @@ export function RunCostBadge({ cost, variant = "compact", tokens }: RunCostBadge
   // what we know and drop the cost segment entirely — a trailing "· —" on every
   // such row is noise, and the token count already proves the run did work.
   const hasTokens = tokens != null && tokens > 0;
-  const hasCost = cost != null;
+  const hasCost = cost != null || isSub;
   if (!hasTokens && !hasCost) return null;
 
   return (
     <span className="tnum">
       {hasTokens && t("cost.tokens", { tokens: formatTokenCount(tokens) })}
       {hasTokens && hasCost && " · "}
-      {hasCost && formatCostUsd(cost)}
+      {hasCost && costText}
     </span>
   );
 }

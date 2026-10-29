@@ -8,7 +8,7 @@ import { Badge } from "@devdigest/ui";
 import type { RunTrace, FindingRecord } from "@devdigest/shared";
 import { PROMPT_COLORS } from "../../constants";
 import { formatSeconds, formatTokens, specEntries } from "../../helpers";
-import { formatCostUsd } from "@/lib/format";
+import { formatRunCost } from "@/lib/format";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
 import { ToolCallRow } from "../ToolCallRow";
@@ -90,8 +90,20 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         <div style={s.statsRow}>
           <Stat label={t("trace.stat.duration")} val={formatSeconds(stats.duration_ms)} />
           <Stat label={t("trace.stat.tokens")} val={formatTokens(stats.tokens_in, stats.tokens_out)} />
-          <Stat label={t("trace.stat.cost")} val={formatCostUsd(stats.cost_usd)} />
+          <Stat label={t("trace.stat.cost")} val={formatRunCost(stats.cost_usd, stats.billing, t("cost.subscription"))} />
           <Stat label={t("trace.stat.findings")} val={stats.findings} />
+          {stats.billing === "subscription" && (
+            <Stat label={t("trace.stat.billing")} val={t("trace.billing.subscription")} />
+          )}
+          {stats.queued_ms != null && stats.queued_ms > 0 && (
+            <Stat
+              label={t("trace.stat.queued")}
+              val={t("trace.queuedSeconds", { seconds: (stats.queued_ms / 1000).toFixed(1) })}
+            />
+          )}
+          {stats.failure_reason && (
+            <Stat label={t("trace.stat.failure")} val={t(`trace.failureReason.${stats.failure_reason}`)} />
+          )}
         </div>
       </TraceSection>
 

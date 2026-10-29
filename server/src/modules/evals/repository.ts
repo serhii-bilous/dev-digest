@@ -40,6 +40,7 @@ export interface InsertEvalRun {
   citationAccuracy: number;
   durationMs: number;
   costUsd: number | null;
+  billing: 'api' | 'subscription';
 }
 
 export class EvalsRepository {
@@ -129,6 +130,7 @@ export class EvalsRepository {
         citationAccuracy: values.citationAccuracy,
         durationMs: values.durationMs,
         costUsd: values.costUsd,
+        billing: values.billing,
       })
       .returning();
     return row!;

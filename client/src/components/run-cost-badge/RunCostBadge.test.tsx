@@ -55,3 +55,24 @@ describe("RunCostBadge — withTokens (PR detail timeline)", () => {
     expect(container.textContent).toBe("");
   });
 });
+
+describe("RunCostBadge — subscription billing (NFR-6: text, not colour)", () => {
+  it("compact shows the Subscription label", () => {
+    renderBadge(<RunCostBadge cost={null} billing="subscription" />);
+    expect(screen.getByText("Subscription")).toBeInTheDocument();
+  });
+
+  it("withTokens keeps tokens and shows Subscription", () => {
+    const { container } = renderBadge(
+      <RunCostBadge variant="withTokens" tokens={9119} cost={null} billing="subscription" />,
+    );
+    expect(container.textContent).toBe("9 119 tok · Subscription");
+  });
+
+  it("withTokens still renders when tokens are unknown", () => {
+    const { container } = renderBadge(
+      <RunCostBadge variant="withTokens" tokens={0} cost={null} billing="subscription" />,
+    );
+    expect(container.textContent).toBe("Subscription");
+  });
+});

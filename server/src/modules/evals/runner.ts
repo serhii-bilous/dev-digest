@@ -1,5 +1,7 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider } from '@devdigest/shared';
+import { randomUUID } from 'node:crypto';
+import type { LocalFailureReason, Provider } from '@devdigest/shared';
+import { LocalProviderError, billingFor, type LocalLogger } from '../../platform/local-errors.js';
 import { reviewPullRequest } from '@devdigest/reviewer-core';
 import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
 import type { AgentRow, EvalCaseRow, SkillRow } from '../../db/rows.js';
@@ -8,6 +10,10 @@ import { HARNESS_MODEL, HARNESS_PROVIDER, HARNESS_SYSTEM_PROMPT } from './consta
 import { gradeEvalCase, type FindingDescriptor, type GradingResult } from './grading.js';
 
 export interface EvalRunOutcome {
+  /** 'subscription' when the case ran through Local (cost is 0, not billed). */
+  billing: 'api' | 'subscription';
+  /** Set when a Local call failed (AC-27): recorded on the run, never thrown. */
+  failure?: { reason: LocalFailureReason; error: string };
   actualOutput: FindingDescriptor[];
   metrics: GradingResult;
 }
@@ -30,9 +36,36 @@ async function executeAndGrade(
   container: Container,
   config: ReviewConfig,
   evalCase: EvalCaseRow,
+  logger?: LocalLogger,
+): Promise<EvalRunOutcome> {
+  const started = Date.now();
+  try {
+    return await executeAndGradeInner(container, config, evalCase, logger);
+  } catch (err) {
+    // NFR-8: a Local failure is recorded on the run, never an HTTP 5xx.
+    if (!(err instanceof LocalProviderError)) throw err;
+    return {
+      billing: 'subscription',
+      failure: { reason: err.reason, error: `${err.reason}: ${err.message}` },
+      actualOutput: [],
+      metrics: { recall: 0, precision: 0, citation_accuracy: 0, pass: false, duration_ms: Date.now() - started, cost_usd: null },
+    };
+  }
+}
+
+async function executeAndGradeInner(
+  container: Container,
+  config: ReviewConfig,
+  evalCase: EvalCaseRow,
+  logger?: LocalLogger,
 ): Promise<EvalRunOutcome> {
   const start = Date.now();
-  const llm = await container.llm(config.provider);
+  // Local evals keep the 300 s timeout and the 2-slot cap but are not
+  // cancellable (no signal). `runId` only labels the one NFR-10 log line.
+  const llm = await container.llmFor(config.provider, {
+    runId: `eval:${evalCase.id}:${randomUUID()}`,
+    ...(logger ? { logger } : {}),
+  });
   const diff = parseUnifiedDiff(evalCase.inputDiff ?? '');
 
   const outcome = await reviewPullRequest({
@@ -61,7 +94,7 @@ async function executeAndGrade(
     outcome.costUsd,
   );
 
-  return { actualOutput, metrics };
+  return { actualOutput, metrics, billing: billingFor(config.provider) };
 }
 
 /** Run one eval case owned by an AGENT: the agent's real provider/model/
@@ -70,6 +103,7 @@ export async function runEvalCase(
   container: Container,
   agent: AgentRow,
   evalCase: EvalCaseRow,
+  logger?: LocalLogger,
 ): Promise<EvalRunOutcome> {
   const skills = await resolveEnabledSkills(container.agentsRepo, agent.id);
   return executeAndGrade(
@@ -81,6 +115,7 @@ export async function runEvalCase(
       skills: skills.map((s) => s.body),
     },
     evalCase,
+    logger,
   );
 }
 
@@ -90,6 +125,7 @@ export async function runSkillEvalCase(
   container: Container,
   skill: SkillRow,
   evalCase: EvalCaseRow,
+  logger?: LocalLogger,
 ): Promise<EvalRunOutcome> {
   return executeAndGrade(
     container,
@@ -100,5 +136,6 @@ export async function runSkillEvalCase(
       skills: [skill.body],
     },
     evalCase,
+    logger,
   );
 }

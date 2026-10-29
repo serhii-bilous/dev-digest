@@ -1,7 +1,8 @@
 {
   "viewTrace": "View trace",
   "cost": {
-    "tokens": "{tokens} tok"
+    "tokens": "{tokens} tok",
+    "subscription": "Subscription"
   },
   "finding": {
     "trifecta": "trifecta"
@@ -49,8 +50,25 @@
       "duration": "DURATION",
       "tokens": "TOKENS",
       "cost": "COST",
-      "findings": "FINDINGS"
+      "findings": "FINDINGS",
+      "billing": "BILLING",
+      "queued": "QUEUED",
+      "failure": "FAILURE"
     },
+    "billing": {
+      "api": "API",
+      "subscription": "Subscription"
+    },
+    "failureReason": {
+      "cli_missing": "Claude CLI not installed",
+      "token_missing": "Local token not set",
+      "auth_failed": "Local authentication failed",
+      "rate_limited": "Local rate limit reached",
+      "timeout": "Local run timed out",
+      "invalid_output": "Local output was invalid",
+      "cli_error": "Claude CLI error"
+    },
+    "queuedSeconds": "{seconds}s",
     "prompt": {
       "system": "System",
       "skills": "Skills (dynamic)",

@@ -132,6 +132,13 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Tool & Library Notes
 
+- **2026-10-28** — `@fastify/rate-limit` is not registered at all when
+  `config.nodeEnv === 'test'` (`src/app.ts:95`), so per-route `rateLimit`
+  options are silently inert in every test that builds the app normally — a
+  "21st call → 429" test passes vacuously or fails confusingly. Build the app
+  with `NODE_ENV=development` for that test, as
+  `src/platform/container.local.test.ts` (NFR-5 case) does.
+
 - **2026-08-15** — The seeded `acme/payments-api` PR #482's `files_count`
   metadata (9) does not match how many `pr_files` rows are actually
   persisted for it (4) — the seed only inserted a handful of files, not the
@@ -164,6 +171,17 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-07-29** — `pnpm db:migrate` dumps raw Postgres NOTICE objects (`'extension "vector" already exists, skipping'`, code 42710) that read like errors but are idempotent skips — the run is fine iff it ends with `✓ migrations applied`. Evidence: `src/db/migrate.ts` sets no `onnotice` handler, so the `postgres` client logs every notice to stderr.
 
 ## Recurring Errors & Fixes
+
+- **2026-10-27** — The warning `GitHub PR sync skipped (no token / offline);
+  serving persisted PRs` also fires when a token is configured but the
+  fine-grained PAT cannot see the repo. GitHub answers `404` for a private repo
+  the token isn't granted. The logged response header
+  `x-accepted-github-permissions: pull_requests=read` names the missing
+  permission. The clone fails separately, as
+  `fatal: ... The requested URL returned error: 403`. Nothing retries after the
+  PAT is fixed: press Refresh (clone) and Sync (`POST /repos/:id/poll`).
+  `docker compose logs api | grep -E '"status": 40|x-accepted-github-permissions'`,
+  `server/src/modules/pulls/service.ts:86`
 
 - **2026-10-03** — When a run fails at the provider (`400 Provider returned
   error`), its persisted trace comes from `traceFromBuffer`. That trace has an
@@ -214,3 +232,15 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-07-29** — Entries above were split out of the root `INSIGHTS.md` when per-module files were introduced; they came from a repo-wide sweep done while writing the `CLAUDE.md` files.
 
 ## Open Questions
+
+- **2026-10-28** — The Local provider's CLI contract is research-derived, not
+  recorded from a real run: the JSON envelope / `usage` key names and the
+  usage-limit result shape in `src/adapters/llm/local/__fixtures__/*.json` are
+  unverified, `--setting-sources ""` is NOT passed (unconfirmed that the CLI
+  accepts an empty value), and `--max-turns` does not appear in `claude --help`
+  (2.1.312). AC-21 isolation therefore rests on a 0700 temp root under
+  `~/.devdigest/local-runs` plus empty `HOME`/`CLAUDE_CONFIG_DIR`, not on
+  disabling setting sources. To close it: run one `claude -p --output-format
+  json --json-schema …` call with a throwaway `claude setup-token` token,
+  replace the fixtures, and add the flag to `buildArgs` in
+  `src/adapters/llm/local/cli-runner.ts` if accepted.

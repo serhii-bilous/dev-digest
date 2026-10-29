@@ -64,6 +64,10 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /** Host PATH, handed to the Local Claude CLI child (its only inherited variable). */
+  pathEnv?: string;
+  /** Dedicated 0700 root for Local CLI working dirs (never world-writable tmpdir). */
+  localRunsDir?: string;
   /** Project Context discovery + run-time budget. */
   context: { roots: string[]; glob: string; budgetTokens: number };
 };
@@ -89,6 +93,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    pathEnv: env.PATH ?? '',
+    localRunsDir: join(homedir(), '.devdigest', 'local-runs'),
     context: {
       roots: (parsed.CONTEXT_ROOTS ?? '.')
         .split(',')

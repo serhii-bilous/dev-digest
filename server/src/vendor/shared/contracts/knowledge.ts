@@ -47,6 +47,10 @@ export const Onboarding = z.object({
 export type Onboarding = z.infer<typeof Onboarding>;
 
 // ---- Eval ----
+/** How a run is billed: per-token API spend vs. a flat Claude subscription (local provider). */
+export const Billing = z.enum(['api', 'subscription']);
+export type Billing = z.infer<typeof Billing>;
+
 export const EvalPerTrace = z.object({
   name: z.string(),
   pass: z.boolean(),
@@ -64,6 +68,8 @@ export const EvalRun = z.object({
   duration_ms: z.number().int(),
   cost_usd: z.number().nullable(),
   per_trace: z.array(EvalPerTrace),
+  /** 'subscription' for runs billed to a local Claude subscription; old payloads default to 'api'. */
+  billing: Billing.default('api'),
 });
 export type EvalRun = z.infer<typeof EvalRun>;
 
@@ -227,8 +233,51 @@ export type ConventionScan = z.infer<typeof ConventionScan>;
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a
 // custom baseURL) — used by the CI runner for cheap models (DeepSeek/GLM/MiniMax).
-export const Provider = z.enum(['openai', 'anthropic', 'openrouter']);
+export const ApiProvider = z.enum(['openai', 'anthropic', 'openrouter']);
+export type ApiProvider = z.infer<typeof ApiProvider>;
+
+// 'local' runs through the user's local Claude CLI (subscription); API-only
+// surfaces (feature models, CI manifests) use ApiProvider instead.
+export const Provider = z.enum([...ApiProvider.options, 'local']);
 export type Provider = z.infer<typeof Provider>;
+
+export const LOCAL_MODEL_ALIASES = ['opus', 'sonnet', 'haiku'] as const;
+export type LocalModelAlias = (typeof LOCAL_MODEL_ALIASES)[number];
+export const LOCAL_MODEL_LABELS: Record<LocalModelAlias, string> = {
+  opus: 'Claude Opus',
+  sonnet: 'Claude Sonnet',
+  haiku: 'Claude Haiku',
+};
+
+/** Why the local provider cannot be used at all (detected before a run). */
+export const LocalUnavailableReason = z.enum(['cli_missing', 'token_missing']);
+export type LocalUnavailableReason = z.infer<typeof LocalUnavailableReason>;
+
+/** Why a local run/connection test failed. */
+export const LocalFailureReason = z.enum([
+  'cli_missing',
+  'token_missing',
+  'auth_failed',
+  'rate_limited',
+  'timeout',
+  'invalid_output',
+  'cli_error',
+]);
+export type LocalFailureReason = z.infer<typeof LocalFailureReason>;
+
+/** Refinement: a `local` agent's model must be one of the CLI aliases. */
+export function refineAgentProviderModel(
+  v: { provider?: string; model?: string },
+  ctx: z.RefinementCtx,
+): void {
+  if (v.provider === 'local' && v.model !== undefined && !(LOCAL_MODEL_ALIASES as readonly string[]).includes(v.model)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['model'],
+      message: `Local agents must use one of: ${LOCAL_MODEL_ALIASES.join(', ')}`,
+    });
+  }
+}
 
 // Review execution strategy (matches @devdigest/reviewer-core's ReviewStrategy):
 //  - single-pass: send the WHOLE diff in ONE model call (default)
@@ -264,7 +313,7 @@ export const Agent = z.object({
   // Project Context — ordered repo-relative markdown paths attached directly
   // to this agent (paths only, never text). Read at run time.
   context_paths: z.array(z.string()).default([]),
-});
+}).superRefine(refineAgentProviderModel);
 export type Agent = z.infer<typeof Agent>;
 
 export const AgentSkillLink = z.object({
@@ -306,7 +355,7 @@ export const AgentVersionConfig = z.object({
   skills: z.array(z.string()),
   /** Ordered Project Context paths; absent on snapshots taken before the feature. */
   context_paths: z.array(z.string()).default([]),
-});
+}).superRefine(refineAgentProviderModel);
 export type AgentVersionConfig = z.infer<typeof AgentVersionConfig>;
 
 export const AgentVersion = z.object({

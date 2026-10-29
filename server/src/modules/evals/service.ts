@@ -9,6 +9,7 @@ import type { Container } from '../../platform/container.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { EvalsRepository } from './repository.js';
 import { toEvalCaseDto, toEvalRunDto } from './helpers.js';
+import type { LocalLogger } from '../../platform/local-errors.js';
 import { runEvalCase, runSkillEvalCase, type EvalRunOutcome } from './runner.js';
 
 /**
@@ -85,7 +86,7 @@ export class EvalsService {
    * the review through the appropriate engine path, grade the grounded
    * findings, persist the eval_runs row.
    */
-  async runOne(workspaceId: string, caseId: string): Promise<EvalRunResult> {
+  async runOne(workspaceId: string, caseId: string, logger?: LocalLogger): Promise<EvalRunResult> {
     const evalCase = await this.repo.getById(workspaceId, caseId);
     if (!evalCase) throw new NotFoundError('Eval case not found');
 
@@ -93,22 +94,26 @@ export class EvalsService {
     if (evalCase.ownerKind === 'agent') {
       const agent = await this.container.agentsRepo.getById(workspaceId, evalCase.ownerId);
       if (!agent) throw new NotFoundError('Owning agent not found');
-      outcome = await runEvalCase(this.container, agent, evalCase);
+      outcome = await runEvalCase(this.container, agent, evalCase, logger);
     } else {
       const skill = await this.container.skillsRepo.getById(workspaceId, evalCase.ownerId);
       if (!skill) throw new NotFoundError('Owning skill not found');
-      outcome = await runSkillEvalCase(this.container, skill, evalCase);
+      outcome = await runSkillEvalCase(this.container, skill, evalCase, logger);
     }
-    const { actualOutput, metrics } = outcome;
+    const { actualOutput, metrics, failure } = outcome;
+    // A failed Local case records its typed reason + "<reason>: <message>" in
+    // the run's existing `actual_output` jsonb (no schema/contract change).
+    const stored = failure ? { failure_reason: failure.reason, error: failure.error } : actualOutput;
     const runRow = await this.repo.insertRun({
       caseId: evalCase.id,
-      actualOutput,
+      actualOutput: stored,
       pass: metrics.pass,
       recall: metrics.recall,
       precision: metrics.precision,
       citationAccuracy: metrics.citation_accuracy,
       durationMs: metrics.duration_ms,
       costUsd: metrics.cost_usd,
+      billing: outcome.billing,
     });
 
     return {
@@ -122,12 +127,13 @@ export class EvalsService {
         traces_total: 1,
         duration_ms: metrics.duration_ms,
         cost_usd: metrics.cost_usd,
+        billing: outcome.billing,
         per_trace: [
           {
             name: evalCase.name,
             pass: metrics.pass,
             expected: evalCase.expectedOutput,
-            actual: actualOutput,
+            actual: stored,
           },
         ],
       },
@@ -140,11 +146,12 @@ export class EvalsService {
     workspaceId: string,
     ownerKind: EvalOwnerKind,
     ownerId: string,
+    logger?: LocalLogger,
   ): Promise<EvalRunResult[]> {
     const cases = await this.repo.list(workspaceId, ownerKind, ownerId);
     const results: EvalRunResult[] = [];
     for (const c of cases) {
-      results.push(await this.runOne(workspaceId, c.id));
+      results.push(await this.runOne(workspaceId, c.id, logger));
     }
     return results;
   }

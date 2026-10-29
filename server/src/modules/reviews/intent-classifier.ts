@@ -78,7 +78,7 @@ export class IntentClassifier {
 
     const fullDiffTokens = approxTokens(diff.raw);
     logger?.info(
-      { prId, fullDiffTokens, classifierTokensIn: tokensIn, savedTokens: fullDiffTokens - tokensIn },
+      { prId, fullDiffTokens, classifierTokensIn: tokensIn, savedTokens: fullDiffTokens - (tokensIn ?? 0) },
       'intent classifier: token savings vs full diff',
     );
 
@@ -86,7 +86,7 @@ export class IntentClassifier {
     await this.repo.upsertIntent(
       prId,
       { summary: data.summary, in_scope: data.in_scope, out_of_scope: data.out_of_scope },
-      { provider, model, tokensIn, tokensOut, costUsd: costUsd ?? 0, computedAt },
+      { provider, model, tokensIn: tokensIn ?? 0, tokensOut: tokensOut ?? 0, costUsd: costUsd ?? 0, computedAt },
     );
 
     return {

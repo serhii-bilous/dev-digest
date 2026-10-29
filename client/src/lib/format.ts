@@ -28,6 +28,20 @@ export function formatCostUsd(usd: number | null | undefined): string {
 }
 
 /**
+ * Cost cell for a run, billing-aware. Subscription runs (Local Claude CLI) have
+ * no per-run USD, so they read as the caller-supplied, already-translated label
+ * instead of "—" or a fabricated "$0.00". format.ts stays free of i18n; the
+ * default only exists for callers that have no translator at hand.
+ */
+export function formatRunCost(
+  usd: number | null | undefined,
+  billing: "api" | "subscription" | null | undefined,
+  subscriptionLabel = "Subscription",
+): string {
+  return billing === "subscription" ? subscriptionLabel : formatCostUsd(usd);
+}
+
+/**
  * Token count with space thousands separators, e.g. 9119 → "9 119". Spaces
  * rather than commas so the number reads as a quantity next to a dollar figure
  * without the two punctuation styles competing.

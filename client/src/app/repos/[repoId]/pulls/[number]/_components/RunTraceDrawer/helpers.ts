@@ -33,6 +33,7 @@ export function formatSeconds(ms: number): string {
 }
 
 /** Token in→out summary (e.g. "12k→1.5k"). */
-export function formatTokens(tokensIn: number, tokensOut: number): string {
+export function formatTokens(tokensIn: number | null, tokensOut: number | null): string {
+  if (tokensIn == null || tokensOut == null) return "—";
   return `${(tokensIn / 1000).toFixed(0)}k→${(tokensOut / 1000).toFixed(1)}k`;
 }

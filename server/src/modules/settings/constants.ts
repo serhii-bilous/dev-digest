@@ -9,5 +9,6 @@ export const SECRET_KEY_BY_PROVIDER: Record<ConnTestProvider, SecretKey> = {
   openai: 'OPENAI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
   openrouter: 'OPENROUTER_API_KEY',
+  local: 'LOCAL_CLAUDE_OAUTH_TOKEN',
   github: 'GITHUB_TOKEN',
 };

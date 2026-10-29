@@ -54,7 +54,7 @@ state="$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null || echo 
 case "$state" in
   running) log "Postgres container already running — reusing it" ;;
   exited|created) log "starting existing Postgres container"; docker start "$CONTAINER" >/dev/null ;;
-  *)       log "starting Postgres (docker compose up -d)"; docker compose up -d ;;
+  *)       log "starting Postgres (docker compose up -d postgres)"; docker compose up -d postgres ;;
 esac
 
 log "waiting for Postgres to be healthy"

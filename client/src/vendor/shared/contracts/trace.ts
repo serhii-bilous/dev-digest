@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Billing, LocalFailureReason } from './knowledge.js';
 
 /**
  * Run trace. The ENTIRE trace of one run is persisted as a SINGLE
@@ -62,8 +63,13 @@ export type MemoryPulled = z.infer<typeof MemoryPulled>;
 
 export const RunStats = z.object({
   duration_ms: z.number().int(),
-  tokens_in: z.number().int(),
-  tokens_out: z.number().int(),
+  /** Null for local (subscription) runs — the CLI reports no usable counts. */
+  tokens_in: z.number().int().nullable(),
+  tokens_out: z.number().int().nullable(),
+  billing: Billing.default('api'),
+  /** Time spent waiting in the local-run queue. */
+  queued_ms: z.number().int().nullish(),
+  failure_reason: LocalFailureReason.nullish(),
   /**
    * USD billed for this run. Null — never 0 — when the price is unknown (model
    * missing from the price book) or the run never reached the model. The UI
@@ -150,6 +156,9 @@ export const RunSummary = z.object({
   critical_count: z.number().int().nullable(),
   warning_count: z.number().int().nullable(),
   suggestion_count: z.number().int().nullable(),
+  billing: Billing.default('api'),
+  failure_reason: LocalFailureReason.nullish(),
+  queued_for_local: z.boolean().default(false),
 });
 export type RunSummary = z.infer<typeof RunSummary>;
 

@@ -219,12 +219,14 @@ export function RunHistory({
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
+              {r.queued_for_local && <span>{t("timeline.queuedForLocal")}</span>}
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
               {settled && (
                 <RunCostBadge
                   variant="withTokens"
                   tokens={(r.tokens_in ?? 0) + (r.tokens_out ?? 0)}
                   cost={r.cost_usd}
+                  billing={r.billing}
                 />
               )}
             </div>

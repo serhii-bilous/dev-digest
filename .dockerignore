@@ -1,0 +1,19 @@
+# Build context is the repo root (server needs ../reviewer-core).
+# Keep it small and never ship host-built native modules or secrets.
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+!**/.env.example
+**/.DS_Store
+.git
+.idea
+.claude
+server/clones
+e2e
+mcp-server
+docs
+specs
