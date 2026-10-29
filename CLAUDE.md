@@ -72,6 +72,12 @@ Flags for `dev.sh`: `--no-seed` · `--no-client` · `--db-only` · `--help`.
 
 - **Migrations do not run on boot.** `relation ... does not exist` means you
   skipped `pnpm db:migrate`.
+- **The Docker stack always runs from `main`.** Before `docker compose up -d
+  --build`, run `git checkout main && git pull`. Never build the containers
+  from a feature branch: the API entrypoint migrates and seeds the shared
+  `devdigest_pgdata` volume, so a branch's unmerged migrations would land in
+  the live DB. Test feature branches with `./scripts/dev.sh` or
+  `npm run e2e:hermetic` instead.
 - **Never `docker compose down -v`** to "reset" — `-v` destroys the
   `devdigest_pgdata` volume and every imported repo and review with it.
 - The server reaps orphaned `running` runs on boot; a run stuck in `running` is

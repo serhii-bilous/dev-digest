@@ -1,4 +1,4 @@
-# Spec: Stack-aware agents (agent ↔ repository compatibility) + built-in Python reviewers   |   Spec ID: SPEC-2026-10-27-stack-aware-agents   |   Status: approved
+# Spec: Stack-aware agents (agent ↔ repository compatibility) + built-in Python reviewers   |   Spec ID: SPEC-2026-10-27-stack-aware-agents   |   Status: implemented
  Supersedes: none
 Plan: docs/plans/2026-10-27-stack-aware-agents.md
 Modules touched: server, client, mcp-server, `@devdigest/shared`
