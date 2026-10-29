@@ -212,7 +212,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     // the PR list surfaces the latest review's per-severity finding counts
     const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
     const listed = pulls.find((p: { id: string }) => p.id === pr.id);
-    expect(listed.findings_counts).toEqual({ CRITICAL: 1, WARNING: 0, SUGGESTION: 0 });
+    expect(listed.findings).toEqual({ CRITICAL: 1, WARNING: 0, SUGGESTION: 0 });
 
     await app.close();
   });
@@ -347,7 +347,12 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
   it('run all enabled agents reviews with each enabled agent', async () => {
     const app = await appWith(REVIEW_FIXTURE);
-    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    // Stack-aware runs are opt-in: "run all" runs only agents ACTIVE on this repo.
+    const allAgents = await pg.handle.db.select().from(t.agents).where(eq(t.agents.workspaceId, workspaceId));
+    await pg.handle.db
+      .insert(t.repoAgentStates)
+      .values(allAgents.map((ag) => ({ repoId: repo.id, agentId: ag.id, active: true })));
     const body = (
       await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { all: true } })
     ).json();

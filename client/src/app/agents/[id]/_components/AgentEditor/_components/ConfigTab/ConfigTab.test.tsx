@@ -5,15 +5,19 @@ import type { Agent } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/agents.json";
 import { ConfigTab } from "./ConfigTab";
 
+const mutate = vi.fn();
 let status: { available: boolean; reason?: string; token_configured: boolean } | undefined;
 vi.mock("@/lib/hooks/local", () => ({ useLocalStatus: () => ({ data: status }) }));
 vi.mock("../../../../../../../lib/hooks/agents", () => ({
-  useUpdateAgent: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false }),
+  useUpdateAgent: () => ({ mutate, isPending: false, isSuccess: false }),
   useProviderModels: () => ({ data: [] }),
 }));
 vi.mock("../../../../../../../lib/toast", () => ({ useToast: () => ({ success: vi.fn() }) }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  mutate.mockClear();
+});
 
 const AGENT: Agent = {
   id: "ag1",
@@ -27,7 +31,7 @@ const AGENT: Agent = {
   ci_fail_on: "critical",
   repo_intel: true,
   context_paths: [],
-  enabled: true,
+  languages: "any",
   version: 1,
 };
 
@@ -76,5 +80,32 @@ describe("ConfigTab Local provider", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Provider" }), { target: { value: "openai" } });
     expect(screen.getByText("gpt-4.1")).toBeInTheDocument();
     expect(screen.queryByText("opus")).toBeNull();
+  });
+});
+
+describe("ConfigTab Languages field", () => {
+  it("edits Any -> specific list and sends languages in the save payload (AC-12)", () => {
+    status = { available: true, token_configured: true };
+    setup(AGENT);
+    fireEvent.click(screen.getByRole("radio", { name: "Specific languages" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(/at least one language/i);
+    expect(screen.getByRole("button", { name: "Save agent" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "+ Python" }));
+    const input = screen.getByPlaceholderText("Add a language…");
+    fireEvent.change(input, { target: { value: "Zig" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "Save agent" }));
+    expect(mutate.mock.calls[0]![0].patch.languages).toEqual(["Python", "Zig"]);
+  });
+
+  it("saves 'any' and rejects names over 50 chars", () => {
+    status = { available: true, token_configured: true };
+    setup({ ...AGENT, languages: ["Go"] });
+    fireEvent.change(screen.getByPlaceholderText("Add a language…"), { target: { value: "x".repeat(51) } });
+    fireEvent.click(screen.getByRole("button", { name: "Add language" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(/at most 50/i);
+    fireEvent.click(screen.getByRole("radio", { name: "Any language" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save agent" }));
+    expect(mutate.mock.calls[0]![0].patch.languages).toBe("any");
   });
 });

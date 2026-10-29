@@ -144,4 +144,25 @@ describe('run_agent_on_pr', () => {
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('list_agents');
   });
+
+  it('surfaces a 409 agent_incompatible POST error with the API message', async () => {
+    const message = 'Agent supports [php] but repo uses [typescript]';
+    const client = stubClient({
+      get: async (path: string) => {
+        if (path === '/repos') return [REPO];
+        if (path === `/repos/${REPO.id}/pulls`) return [PR];
+        throw new Error(`unexpected GET ${path}`);
+      },
+      post: async () => {
+        throw new ApiCallError(409, 'agent_incompatible', message);
+      },
+    });
+    const handler = captureHandler(registerRunAgentOnPrTool, client);
+
+    const result = await handler(args);
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain(message);
+    expect(result.content[0].text).toContain('agent_incompatible');
+  });
 });

@@ -1,4 +1,5 @@
 import { Octokit } from 'octokit';
+import { z } from 'zod';
 import type {
   GitHubClient,
   RepoRef,
@@ -365,10 +366,29 @@ export class OctokitGitHubClient implements GitHubClient {
     };
   }
 
+  async getLanguages(repo: RepoRef): Promise<Record<string, number>> {
+    const res = await withTimeout(
+      this.octokit.rest.repos.listLanguages({ owner: repo.owner, repo: repo.name }),
+      TIMEOUT,
+    );
+    return parseLanguages(res.data);
+  }
+
   async currentLogin(): Promise<string> {
     const res = await withRetry(() =>
       withTimeout(this.octokit.rest.users.getAuthenticated(), TIMEOUT),
     );
     return res.data.login;
   }
+}
+
+const MAX_LANGUAGES = 200;
+const LanguagesResponse = z.record(z.string().min(1).max(100), z.number().int().nonnegative());
+
+/** Validate GitHub's `{language: bytes}` payload; throws (→ `unreachable`) when malformed. Keeps the largest 200. */
+export function parseLanguages(data: unknown): Record<string, number> {
+  const parsed = LanguagesResponse.parse(data);
+  const entries = Object.entries(parsed);
+  if (entries.length <= MAX_LANGUAGES) return parsed;
+  return Object.fromEntries(entries.sort((a, b) => b[1] - a[1]).slice(0, MAX_LANGUAGES));
 }

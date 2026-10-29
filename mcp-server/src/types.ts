@@ -20,7 +20,10 @@ export interface AgentSummary {
   description: string;
   provider: string;
   model: string;
-  enabled: boolean;
+  /** `'any'` = language-agnostic; otherwise a list of language ids. */
+  languages: 'any' | string[];
+  /** Only present on `GET /agents?repo=<id>` (RepoAgent). */
+  active?: boolean;
 }
 
 /** mirrors @devdigest/shared, contracts/platform.ts — Repo */

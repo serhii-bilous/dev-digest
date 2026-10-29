@@ -1,7 +1,8 @@
-import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey, index, timestamp } from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces, users } from './core';
 import { skills } from './skills';
+import { repos } from './repos';
 
 // ============================================================ Agents & skills
 
@@ -32,6 +33,9 @@ export const agents = pgTable('agents', {
   // Project Context — ordered repo-relative markdown paths (never their text).
   // Resolved against the PR's repo and read at the target branch at run time.
   contextPaths: jsonb('context_paths').$type<string[]>().notNull().default([]),
+  // Stack targeting — language names this agent applies to; NULL means `any`.
+  languages: jsonb('languages').$type<string[] | null>(),
+  // DEPRECATED: not read anywhere; per-repo activation lives in `repo_agent_states`. Kept for the spec's column compatibility.
   enabled: boolean('enabled').notNull().default(true),
   version: integer('version').notNull().default(1),
   createdBy: uuid('created_by').references(() => users.id),
@@ -72,5 +76,24 @@ export const agentSkills = pgTable(
     // Reverse lookup: "which agents use this skill?" (the Skills grid's used-by
     // count and the delete confirmation). The PK covers agent_id only.
     skillIdx: index('agent_skills_skill_idx').on(t.skillId),
+  }),
+);
+
+// Per-repo activation of an agent (replaces the global `agents.enabled` for stack-aware runs).
+export const repoAgentStates = pgTable(
+  'repo_agent_states',
+  {
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    active: boolean('active').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.repoId, t.agentId] }),
+    agentIdx: index('repo_agent_states_agent_idx').on(t.agentId),
   }),
 );

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ApiProvider, LocalFailureReason, LocalUnavailableReason } from './knowledge.js';
+import { Agent, ApiProvider, refineAgentProviderModel, LocalFailureReason, LocalUnavailableReason } from './knowledge.js';
 import { SeverityCounts } from './findings.js';
 
 /**
@@ -161,6 +161,28 @@ export const RepoInput = z.object({
 });
 export type RepoInput = z.infer<typeof RepoInput>;
 
+export const RepoStackStatus = z.enum(['known', 'stale', 'unknown']);
+export type RepoStackStatus = z.infer<typeof RepoStackStatus>;
+
+export const RepoStackReason = z.enum(['no_token', 'no_access', 'unreachable', 'no_code_languages']);
+export type RepoStackReason = z.infer<typeof RepoStackReason>;
+
+export const RepoLanguage = z.object({
+  name: z.string(),
+  bytes: z.number().int().nonnegative(),
+  percent: z.number(),
+});
+export type RepoLanguage = z.infer<typeof RepoLanguage>;
+
+export const RepoStack = z.object({
+  status: RepoStackStatus,
+  reason: RepoStackReason.optional(),
+  languages: z.array(RepoLanguage),
+  fetched_at: z.string().optional(),
+  last_attempt_at: z.string().optional(),
+});
+export type RepoStack = z.infer<typeof RepoStack>;
+
 export const Repo = z.object({
   id: z.string(),
   workspace_id: z.string(),
@@ -171,8 +193,27 @@ export const Repo = z.object({
   clone_path: z.string().nullable(),
   last_polled_at: z.string().nullable(),
   created_by: z.string().nullable(),
+  stack: RepoStack.nullable().optional(),
 });
 export type Repo = z.infer<typeof Repo>;
+
+export const RepoAgent = Agent.innerType()
+  .extend({ compatible: z.boolean(), active: z.boolean() })
+  .superRefine(refineAgentProviderModel);
+export type RepoAgent = z.infer<typeof RepoAgent>;
+
+export const SetRepoAgentActiveInput = z.object({ active: z.boolean() });
+export type SetRepoAgentActiveInput = z.infer<typeof SetRepoAgentActiveInput>;
+
+export const RepoRefreshResponse = z.object({ status: z.literal('refreshing'), stack: RepoStack });
+export type RepoRefreshResponse = z.infer<typeof RepoRefreshResponse>;
+
+/** `details` of the 4xx returned when a run targets an incompatible agent. */
+export const AgentIncompatibleDetails = z.object({
+  agent_languages: z.array(z.string()),
+  repo_languages: z.array(z.string()),
+});
+export type AgentIncompatibleDetails = z.infer<typeof AgentIncompatibleDetails>;
 
 // ---- Pull requests ----
 export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);

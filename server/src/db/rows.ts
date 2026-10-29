@@ -24,3 +24,4 @@ export type RepoRow = typeof t.repos.$inferSelect;
 export type PrFileRow = typeof t.prFiles.$inferSelect;
 export type PrCommitRow = typeof t.prCommits.$inferSelect;
 export type SettingRow = typeof t.settings.$inferSelect;
+export type RepoAgentStateRow = typeof t.repoAgentStates.$inferSelect;

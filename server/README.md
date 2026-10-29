@@ -77,10 +77,11 @@ flowchart TB
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
   end
   subgraph Agents["Agents"]
-    agents["agents<br/>/agents · /agents/:id"]
+    agents["agents<br/>/agents · /agents/:id · /agents/:id/repos/:repoId"]
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
+    repoStack["repo-stack<br/>/repos/:id/stack · /repos/:id/stack/refresh"]
   end
   subgraph Platform["Platform"]
     settings["settings<br/>/settings · /providers"]
@@ -88,6 +89,24 @@ flowchart TB
   end
   HEALTH["/health (liveness) · /health/ready (DB ping → 200/503)"]
 ```
+
+### Stack-aware agents
+
+Agents declare `languages` (`'any'` or a list such as `['TypeScript','JavaScript']`);
+each repo has a detected stack. Agent activation is per repo, not a global `enabled` flag.
+
+| Route | Returns | Notes |
+|---|---|---|
+| `GET /agents?repo=<repoId>` | `RepoAgent[]` | Compatible agents only, each with `compatible` and `active`. Without `repo`, the plain agent list. |
+| `GET /agents/:id?repo=<repoId>` | `RepoAgent` | Without `repo`, the plain `Agent`. |
+| `PUT /agents/:id/repos/:repoId` | `RepoAgent` | Body `{ active: boolean }`. Activating an incompatible agent is `409 agent_incompatible` with `error.details { agent_languages, repo_languages }`. |
+| `GET /repos/:id/stack` | `RepoStack` | Fetches when never attempted, or when `unknown` and past the cooldown. |
+| `POST /repos/:id/stack/refresh` | `RepoStack` | Retry; bypasses the cooldown. |
+| `POST /repos` | `Repo` | Now includes `stack`. |
+| `POST /repos/:id/refresh` | `{ status: 'refreshing', stack }` | |
+| `POST /agents`, `PUT /agents/:id` | `Agent` | Bodies accept `languages`. |
+
+An unknown stack (e.g. `no_token`) treats every agent as compatible.
 
 ## Environment
 

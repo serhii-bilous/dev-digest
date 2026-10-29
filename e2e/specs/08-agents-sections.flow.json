@@ -1,0 +1,14 @@
+{
+  "name": "Agents page shows Active / Available sections and language badges",
+  "description": "Loads /agents for the seeded repo and confirms both section headings, the language badge on a card, and the seeded Security Reviewer under 'Active on acme/payments-api'. Captures a screenshot for the visual check (AC-60). Read-only seeded data; holds whether the demo repo stack is detected or unknown (no GitHub token in the hermetic stack).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--url", "/agents"], "label": "agents route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents and stack fetches settle" },
+    { "cmd": ["wait", "--text", "Active on acme/payments-api"], "label": "Active section heading is visible" },
+    { "cmd": ["wait", "--text", "Available to add"], "label": "Available section heading is visible" },
+    { "cmd": ["wait", "--text", "TypeScript · JavaScript"], "label": "language badge text is visible on a card" },
+    { "cmd": ["wait", "--text", "Security Reviewer"], "label": "seeded Security Reviewer is listed" },
+    { "cmd": ["screenshot", "test-results/08-agents-sections.png"], "label": "screenshot for the AC-60 visual check" }
+  ]
+}

@@ -1,11 +1,12 @@
-/* AgentCard — model chip, skills count, enabled toggle. Stats are an A5 mount;
+/* AgentCard — model chip, skills count, language badge, action slot. Stats are an A5 mount;
    we render the provider/model + skill count here. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Icon, Badge, Toggle } from "@devdigest/ui";
+import { Icon, Badge } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
+import { LanguageBadge } from "@/components/agents/LanguageBadge";
 import { useLocalStatus } from "@/lib/hooks/local";
 import { useDeleteAgent } from "../../../../lib/hooks/agents";
 import { modelColor } from "./helpers";
@@ -16,13 +17,14 @@ export function AgentCard({
   active,
   skillCount,
   onClick,
-  onToggle,
+  action,
 }: {
   ag: Agent;
   active?: boolean;
   skillCount?: number;
   onClick?: () => void;
-  onToggle?: (enabled: boolean) => void;
+  /** Slot for a per-card action (Add / Remove on /agents). */
+  action?: React.ReactNode;
 }) {
   const t = useTranslations("agents");
   const del = useDeleteAgent();
@@ -30,17 +32,13 @@ export function AgentCard({
   const localUnavailable = ag.provider === "local" && !!localStatus && !localStatus.available;
   const color = modelColor(ag.model);
   return (
-    <div onClick={onClick} style={s.card(!!active, ag.enabled)}>
+    <div onClick={onClick} style={s.card(!!active)}>
       <div style={s.headerRow}>
         <div style={s.iconBox}>
           <Icon.Cpu size={15} />
         </div>
-        <span style={s.name}>{ag.name}</span>
-        {onToggle && (
-          <div onClick={(e) => e.stopPropagation()}>
-            <Toggle on={ag.enabled} onChange={onToggle} size={14} />
-          </div>
-        )}
+        <span style={s.name} title={ag.name}>{ag.name}</span>
+        <LanguageBadge languages={ag.languages} />
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -80,6 +78,7 @@ export function AgentCard({
             {t("card.skillCount", { count: skillCount })}
           </Badge>
         )}
+        {action && <span style={s.action}>{action}</span>}
       </div>
     </div>
   );

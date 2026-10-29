@@ -38,3 +38,8 @@ export function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/ci-runs")) return "ci-runs";
   return "";
 }
+
+/** Pages where picking a repo in the shell switcher must not navigate (AC-26a). */
+export function isAgentsPath(pathname: string): boolean {
+  return activeKeyFor(pathname) === "agents";
+}

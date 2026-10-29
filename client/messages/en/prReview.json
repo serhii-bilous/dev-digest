@@ -38,7 +38,12 @@
     }
   },
   "runReview": {
-    "runAll": "Run all enabled agents",
+    "runAll": "Run all active agents",
+    "loadingAgents": "Loading agents…",
+    "noCompatible": "No agents are compatible with this repository’s languages",
+    "noCompatibleHint": "Open the Agents page",
+    "inactiveHint": "{model} · inactive",
+    "noActiveTooltip": "No agents are active on this repository. Add them on the Agents page.",
     "configureAgents": "Configure agents…",
     "running": "Running…",
     "runReview": "Run Review",

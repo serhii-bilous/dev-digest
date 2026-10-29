@@ -29,7 +29,7 @@ const AGENT: Agent = {
   ci_fail_on: "critical",
   repo_intel: true,
   context_paths: [],
-  enabled: true,
+  languages: "any",
   version: 1,
 };
 

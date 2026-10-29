@@ -3,7 +3,7 @@ import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
 import { DEFAULT_AGENT_DESCRIPTION, INITIAL_AGENT_VERSION } from './constants.js';
-import { isConfigChange } from './helpers.js';
+import { buildVersionConfig, isConfigChange } from './helpers.js';
 
 /**
  * A2 — agents data-access. Owns `agents`, `agent_versions`, and the
@@ -25,7 +25,8 @@ export interface InsertAgent {
   strategy?: ReviewStrategy;
   ciFailOn?: CiFailOn;
   repoIntel?: boolean;
-  enabled?: boolean;
+  /** `null` = any language (stored as NULL). */
+  languages?: string[] | null;
   createdBy?: string | null;
 }
 
@@ -39,7 +40,8 @@ export interface UpdateAgent {
   strategy?: ReviewStrategy;
   ciFailOn?: CiFailOn;
   repoIntel?: boolean;
-  enabled?: boolean;
+  /** `null` = any language (stored as NULL). */
+  languages?: string[] | null;
 }
 
 /** A skill linked to an agent (with its order + per-link switch). */
@@ -61,13 +63,6 @@ export class AgentsRepository {
 
   async list(workspaceId: string): Promise<AgentRow[]> {
     return this.db.select().from(t.agents).where(eq(t.agents.workspaceId, workspaceId));
-  }
-
-  async listEnabled(workspaceId: string): Promise<AgentRow[]> {
-    return this.db
-      .select()
-      .from(t.agents)
-      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.enabled, true)));
   }
 
   async getById(workspaceId: string, id: string): Promise<AgentRow | undefined> {
@@ -104,7 +99,7 @@ export class AgentsRepository {
         ...(values.strategy !== undefined ? { strategy: values.strategy } : {}),
         ...(values.ciFailOn !== undefined ? { ciFailOn: values.ciFailOn } : {}),
         ...(values.repoIntel !== undefined ? { repoIntel: values.repoIntel } : {}),
-        enabled: values.enabled ?? true,
+        languages: values.languages ?? null,
         version: INITIAL_AGENT_VERSION,
         createdBy: values.createdBy ?? null,
       })
@@ -125,7 +120,7 @@ export class AgentsRepository {
     const existing = await this.getById(workspaceId, id);
     if (!existing) return undefined;
 
-    // A config-affecting change (anything except just toggling enabled) bumps version.
+    // A config-affecting change (any versioned field) bumps version.
     const configChanged = isConfigChange(existing, patch);
     const nextVersion = configChanged ? existing.version + 1 : existing.version;
 
@@ -143,7 +138,7 @@ export class AgentsRepository {
         ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
         ...(patch.ciFailOn !== undefined ? { ciFailOn: patch.ciFailOn } : {}),
         ...(patch.repoIntel !== undefined ? { repoIntel: patch.repoIntel } : {}),
-        ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+        ...(patch.languages !== undefined ? { languages: patch.languages } : {}),
         ...(configChanged ? { version: nextVersion } : {}),
       })
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)))
@@ -177,17 +172,7 @@ export class AgentsRepository {
       .values({
         agentId: row.id,
         version,
-        configJson: {
-          provider: row.provider,
-          model: row.model,
-          system_prompt: row.systemPrompt,
-          output_schema: row.outputSchema,
-          strategy: row.strategy,
-          ci_fail_on: row.ciFailOn,
-          repo_intel: row.repoIntel,
-          skills,
-          context_paths: row.contextPaths ?? [],
-        },
+        configJson: buildVersionConfig(row, skills),
       })
       .onConflictDoNothing();
   }

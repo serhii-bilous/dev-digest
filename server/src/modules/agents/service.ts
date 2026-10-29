@@ -1,6 +1,7 @@
 import type { Container } from '../../platform/container.js';
 import type {
   Agent,
+  AgentLanguages,
   AgentSkillDetail,
   AgentSkillLink,
   AgentStats,
@@ -8,12 +9,13 @@ import type {
   CiFailOn,
   ModelInfo,
   Provider,
+  RepoAgent,
   ReviewStrategy,
 } from '@devdigest/shared';
 import { LOCAL_MODEL_ALIASES } from '@devdigest/shared';
-import { ValidationError } from '../../platform/errors.js';
+import { NotFoundError, ValidationError } from '../../platform/errors.js';
 import { AgentsRepository, type SkillLinkInput } from './repository.js';
-import { toAgentDto, toAgentSkillDetail, toAgentVersionDto } from './helpers.js';
+import { toAgentDto, toAgentSkillDetail, toAgentVersionDto, toRepoAgent } from './helpers.js';
 import { buildAgentStats } from './stats.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -23,7 +25,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * Provider/model selection uses the LLM adapter's dynamic model list.
  *
  * An Agent = provider + model + system_prompt + linked skills + output_schema +
- * enabled. Config changes are versioned via `agent_versions` (repository).
+ * languages. Config changes are versioned via `agent_versions` (repository).
  */
 
 // Re-exported for backwards compatibility; implementation lives in ./helpers.
@@ -39,7 +41,7 @@ export interface CreateAgentInput {
   strategy?: ReviewStrategy;
   ci_fail_on?: CiFailOn;
   repo_intel?: boolean;
-  enabled?: boolean;
+  languages?: AgentLanguages;
 }
 
 export interface UpdateAgentInput {
@@ -52,7 +54,12 @@ export interface UpdateAgentInput {
   strategy?: ReviewStrategy;
   ci_fail_on?: CiFailOn;
   repo_intel?: boolean;
-  enabled?: boolean;
+  languages?: AgentLanguages;
+}
+
+/** `'any'` is stored as NULL. */
+export function toStoredLanguages(l: AgentLanguages): string[] | null {
+  return l === 'any' ? null : l;
 }
 
 export class AgentsService {
@@ -72,6 +79,35 @@ export class AgentsService {
     return row ? toAgentDto(row) : undefined;
   }
 
+  /**
+   * Agents usable on a repo (language-compatible only), each with its
+   * `active` flag. Evaluated on every call — no cache, so a languages edit is
+   * reflected immediately. Throws 404 for a repo outside the workspace.
+   */
+  async listForRepo(workspaceId: string, repoId: string): Promise<RepoAgent[]> {
+    const { entries } = await this.container.repoStack.evaluate(workspaceId, repoId);
+    return entries.filter((e) => e.compatible).map(toRepoAgent);
+  }
+
+  /** One agent in repo scope, including when incompatible (AC-31). */
+  async getForRepo(workspaceId: string, repoId: string, id: string): Promise<RepoAgent> {
+    if (!(await this.repo.getById(workspaceId, id))) throw new NotFoundError('Agent not found');
+    const { entries } = await this.container.repoStack.evaluate(workspaceId, repoId);
+    const entry = entries.find((e) => e.agent.id === id);
+    if (!entry) throw new NotFoundError('Agent not found');
+    return toRepoAgent(entry);
+  }
+
+  /** Add / Remove an agent on a repo. 409 `agent_incompatible` comes from the stack service. */
+  async setActive(
+    workspaceId: string,
+    agentId: string,
+    repoId: string,
+    active: boolean,
+  ): Promise<RepoAgent> {
+    return toRepoAgent(await this.container.repoStack.setActive(workspaceId, agentId, repoId, active));
+  }
+
   /** Delete an agent (and its versions/skill-links, via cascade). */
   async delete(workspaceId: string, id: string): Promise<boolean> {
     return this.repo.deleteById(workspaceId, id);
@@ -89,7 +125,7 @@ export class AgentsService {
       ...(input.strategy !== undefined ? { strategy: input.strategy } : {}),
       ...(input.ci_fail_on !== undefined ? { ciFailOn: input.ci_fail_on } : {}),
       ...(input.repo_intel !== undefined ? { repoIntel: input.repo_intel } : {}),
-      enabled: input.enabled,
+      ...(input.languages !== undefined ? { languages: toStoredLanguages(input.languages) } : {}),
       createdBy: userId ?? null,
     });
     return toAgentDto(row);
@@ -124,7 +160,7 @@ export class AgentsService {
       ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
       ...(patch.ci_fail_on !== undefined ? { ciFailOn: patch.ci_fail_on } : {}),
       ...(patch.repo_intel !== undefined ? { repoIntel: patch.repo_intel } : {}),
-      ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+      ...(patch.languages !== undefined ? { languages: toStoredLanguages(patch.languages) } : {}),
     });
     return row ? toAgentDto(row) : undefined;
   }

@@ -40,6 +40,10 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
   unmodified `HEAD`. Not yet root-caused — before spending time on unrelated
   work in this area, check whether it's still broken; don't assume a local
   regression you didn't cause. `server/test/reviews.it.test.ts:215`
+  **Fixed 2026-10-29:** root cause was a stale field name in the test —
+  `GET /repos/:id/pulls` returns the counts as `findings`
+  (`src/modules/pulls/routes.ts:253`), never `findings_counts`. The test now
+  reads `listed.findings`.
 
 - **2026-08-05** — An import of a package absent from both `package.json` and `pnpm-lock.yaml` passes typecheck, unit, and integration lanes locally because a stray copy sits in `server/node_modules` (`fflate`, imported at `src/modules/skills/service.ts:1`), and only a fresh `pnpm install --frozen-lockfile` exposes it as TS2307 — verify a new import against a clean worktree install, not the dev tree. Evidence: `grep fflate package.json pnpm-lock.yaml` returned nothing while `pnpm typecheck` was green.
 
@@ -60,6 +64,16 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
   the SQL predicate can't be exercised with a stubbed repository).
 
 ## Codebase Patterns
+
+- **2026-10-29** — Agent activation is opt-in per (repo, agent): a missing
+  `repo_agent_states` row means **inactive**, and `agents.enabled` is no longer
+  read. So any test that creates its own repo and calls
+  `POST /pulls/:id/review {all:true}` gets `runs: []` until it inserts active
+  `repo_agent_states` rows (or calls `PUT /agents/:id/repos/:repoId
+  {active:true}`). Only the seed's `acme/payments-api` ships with the four
+  TS/JS built-ins active. Compatibility is computed at read time
+  (`src/platform/stack-compat.ts` `resolveEntries`), never stored.
+  `server/test/reviews.it.test.ts` "run all enabled agents…"
 
 - **2026-09-16** — repo-intel's internal `BlastResult` (flat `callers[]` with
   a `viaSymbol` field, plus a `factsByFile` keyed by file) and the shared
@@ -171,6 +185,14 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-07-29** — `pnpm db:migrate` dumps raw Postgres NOTICE objects (`'extension "vector" already exists, skipping'`, code 42710) that read like errors but are idempotent skips — the run is fine iff it ends with `✓ migrations applied`. Evidence: `src/db/migrate.ts` sets no `onnotice` handler, so the `postgres` client logs every notice to stderr.
 
 ## Recurring Errors & Fixes
+
+- **2026-10-29** — Running `scripts/verify.sh server --full` while another
+  verify (e.g. `client --full`) runs in the same shell batch made 8
+  integration files fail with zero failed tests and 27 skipped:
+  `Error: Unable to update lock within the stale threshold` /
+  `{ code: 'ECOMPROMISED' }` — testcontainers' startup lock, not product
+  code. Rerunning `scripts/verify.sh server --full` alone passed. Run the
+  Docker lane by itself before trusting a red `integration-tests`.
 
 - **2026-10-27** — The warning `GitHub PR sync skipped (no token / offline);
   serving persisted PRs` also fires when a token is configured but the
