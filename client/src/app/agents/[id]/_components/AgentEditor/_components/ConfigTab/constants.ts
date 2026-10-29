@@ -11,3 +11,12 @@ export const CI_FAIL_ON_VALUES: readonly CiFailOn[] = ["never", "critical", "war
 
 /** Output-schema options (only one supported in MVP). */
 export const OUTPUT_SCHEMA_VALUE = "Standard findings JSON";
+
+/** Suggested languages for the Languages field (custom names are also allowed). */
+export const LANGUAGE_SUGGESTIONS: readonly string[] = [
+  "Python", "TypeScript", "JavaScript", "Go", "Java", "Ruby", "Rust", "C#", "PHP", "Kotlin", "Swift", "C", "C++",
+];
+
+/** Limits mirroring the AgentLanguages contract in @devdigest/shared. */
+export const MAX_LANGUAGES = 20;
+export const MAX_LANGUAGE_LENGTH = 50;

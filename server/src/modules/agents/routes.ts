@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { CiFailOn, Provider, ReviewStrategy, refineAgentProviderModel } from '@devdigest/shared';
+import { AgentLanguages, CiFailOn, Provider, SetRepoAgentActiveInput, ReviewStrategy, refineAgentProviderModel } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
@@ -21,7 +21,9 @@ const VersionParams = z.object({
  *   GET    /agents                  → list (workspace-scoped)
  *   GET    /agents/:id              → one agent
  *   POST   /agents                  → create
- *   PUT    /agents/:id              → update / toggle enabled (versions config)
+ *   PUT    /agents/:id              → update (versions config)
+ *   PUT    /agents/:id/repos/:repoId → Add/Remove the agent on a repo {active}
+ *   (GET /agents and /agents/:id accept ?repo=<uuid> for repo-scoped reads)
  *   GET    /agents/:id/versions     → config history (newest first)
  *   GET    /agents/:id/versions/:version → one config snapshot
  *   GET    /agents/:id/skills       → linked skills (ordered)
@@ -31,7 +33,10 @@ const VersionParams = z.object({
  *   GET    /providers/:id/models    → dynamic model list for a provider (editor)
  */
 
-const CreateAgentBody = z.object({
+const RepoQuery = z.object({ repo: z.string().uuid().optional() });
+const RepoAgentParams = z.object({ id: z.string().uuid(), repoId: z.string().uuid() });
+
+export const CreateAgentBody = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   provider: Provider,
@@ -41,10 +46,10 @@ const CreateAgentBody = z.object({
   strategy: ReviewStrategy.optional(),
   ci_fail_on: CiFailOn.optional(),
   repo_intel: z.boolean().optional(),
-  enabled: z.boolean().optional(),
+  languages: AgentLanguages.optional(),
 }).superRefine(refineAgentProviderModel);
 
-const UpdateAgentBody = z.object({
+export const UpdateAgentBody = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   provider: Provider.optional(),
@@ -54,7 +59,7 @@ const UpdateAgentBody = z.object({
   strategy: ReviewStrategy.optional(),
   ci_fail_on: CiFailOn.optional(),
   repo_intel: z.boolean().optional(),
-  enabled: z.boolean().optional(),
+  languages: AgentLanguages.optional(),
 }).superRefine(refineAgentProviderModel);
 
 /**
@@ -80,17 +85,33 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const service = new AgentsService(app.container);
 
-  app.get('/agents', async (req) => {
+  app.get('/agents', { schema: { querystring: RepoQuery } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
-    return service.list(workspaceId);
+    const { repo } = req.query;
+    return repo ? service.listForRepo(workspaceId, repo) : service.list(workspaceId);
   });
 
-  app.get('/agents/:id', { schema: { params: IdParams } }, async (req) => {
+  app.get(
+    '/agents/:id',
+    { schema: { params: IdParams, querystring: RepoQuery } },
+    async (req) => {
     const { workspaceId } = await getContext(app.container, req);
+    const { repo } = req.query;
+    if (repo) return service.getForRepo(workspaceId, repo, req.params.id);
     const agent = await service.get(workspaceId, req.params.id);
     if (!agent) throw new NotFoundError('Agent not found');
     return agent;
-  });
+    },
+  );
+
+  app.put(
+    '/agents/:id/repos/:repoId',
+    { schema: { params: RepoAgentParams, body: SetRepoAgentActiveInput } },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      return service.setActive(workspaceId, req.params.id, req.params.repoId, req.body.active);
+    },
+  );
 
   app.post('/agents', { schema: { body: CreateAgentBody } }, async (req, reply) => {
     const { workspaceId, userId } = await getContext(app.container, req);
@@ -107,7 +128,7 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
         ...(body.strategy !== undefined ? { strategy: body.strategy } : {}),
         ...(body.ci_fail_on !== undefined ? { ci_fail_on: body.ci_fail_on } : {}),
         ...(body.repo_intel !== undefined ? { repo_intel: body.repo_intel } : {}),
-        ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
+        ...(body.languages !== undefined ? { languages: body.languages } : {}),
       },
       userId,
     );

@@ -123,6 +123,10 @@ export interface MockGitHubOptions {
   pulls?: PrMeta[];
   detail?: Partial<PrDetail>;
   login?: string;
+  /** Language breakdown returned by getLanguages (language -> bytes). */
+  languages?: Record<string, number>;
+  /** When set, getLanguages rejects with it (a Error, or an object with `status`). */
+  languagesError?: unknown;
   /** Existing inline review comments returned by listReviewComments. */
   comments?: PrReviewComment[];
 }
@@ -132,6 +136,7 @@ export class MockGitHubClient implements GitHubClient {
   public openedPrs: OpenPrPayload[] = [];
   public committed: CommitFilesPayload[] = [];
   public createdComments: CreateReviewCommentInput[] = [];
+  public getLanguagesCalls = 0;
 
   constructor(private opts: MockGitHubOptions = {}) {}
 
@@ -243,6 +248,12 @@ export class MockGitHubClient implements GitHubClient {
     } catch {
       return undefined;
     }
+  }
+
+  async getLanguages(_repo: RepoRef): Promise<Record<string, number>> {
+    this.getLanguagesCalls++;
+    if (this.opts.languagesError !== undefined) throw this.opts.languagesError;
+    return this.opts.languages ?? {};
   }
 
   async currentLogin(): Promise<string> {

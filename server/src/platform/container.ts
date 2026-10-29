@@ -41,6 +41,7 @@ import { SkillsRepository } from '../modules/skills/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import { RepoRepository } from '../modules/repos/repository.js';
 import { PullsRepository } from '../modules/pulls/repository.js';
+import { RepoStackService, type RepoStackLogger } from '../modules/repo-stack/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -77,6 +78,8 @@ export interface ContainerOverrides {
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
+  /** App logger (Fastify's `app.log`) handed to services that emit structured log lines. */
+  logger?: RepoStackLogger;
 }
 
 export class Container {
@@ -101,6 +104,7 @@ export class Container {
   private _reviewRepo?: ReviewRepository;
   private _reposRepo?: RepoRepository;
   private _pullsRepo?: PullsRepository;
+  private _repoStack?: RepoStackService;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -144,6 +148,11 @@ export class Container {
   /** `pull_requests` + PR files/commits. Shared: polling imports through it. */
   get pullsRepo(): PullsRepository {
     return (this._pullsRepo ??= new PullsRepository(this.db));
+  }
+
+  /** Repo language breakdown + agent compatibility/activation. Shared by agents, repos, polling, reviews. */
+  get repoStack(): RepoStackService {
+    return (this._repoStack ??= new RepoStackService(this, undefined, undefined, this.overrides.logger));
   }
 
   get codeIndex(): CodeIndex {

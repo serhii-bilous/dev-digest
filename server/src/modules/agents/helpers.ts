@@ -4,6 +4,7 @@ import type {
   AgentVersion,
   CiFailOn,
   Provider,
+  RepoAgent,
   ReviewStrategy,
   SkillType,
 } from '@devdigest/shared';
@@ -26,12 +27,12 @@ export function toAgentDto(row: AgentRow): Agent {
     model: row.model,
     system_prompt: row.systemPrompt,
     output_schema: row.outputSchema ?? null,
-    enabled: row.enabled,
     version: row.version,
     strategy: row.strategy as ReviewStrategy,
     ci_fail_on: row.ciFailOn as CiFailOn,
     repo_intel: row.repoIntel,
     context_paths: row.contextPaths ?? [],
+    languages: (row.languages ?? 'any') as Agent['languages'],
   };
 }
 
@@ -74,7 +75,7 @@ export function toAgentSkillDetail(link: LinkedSkillRow): AgentSkillDetail {
   };
 }
 
-/** Fields whose change bumps the agent's config version (anything but `enabled`). */
+/** Fields whose change bumps the agent's config version. */
 export interface ConfigChangePatch {
   name?: string;
   description?: string;
@@ -85,10 +86,42 @@ export interface ConfigChangePatch {
   strategy?: ReviewStrategy;
   ciFailOn?: CiFailOn;
   repoIntel?: boolean;
+  /** DB form: `null` = any language. */
+  languages?: string[] | null;
+}
+
+/** Order-insensitive, null-aware form used to compare language lists. */
+function normaliseLanguages(l: string[] | null | undefined): string {
+  return l == null ? 'any' : JSON.stringify([...l].sort());
+}
+
+/** The `config_json` snapshot recorded in `agent_versions` for a row. */
+export function buildVersionConfig(row: AgentRow, skills: string[]) {
+  return {
+    provider: row.provider,
+    model: row.model,
+    system_prompt: row.systemPrompt,
+    output_schema: row.outputSchema,
+    strategy: row.strategy,
+    ci_fail_on: row.ciFailOn,
+    repo_intel: row.repoIntel,
+    skills,
+    context_paths: row.contextPaths ?? [],
+    languages: row.languages ?? 'any',
+  };
+}
+
+/** Compose the repo-scoped DTO: the agent plus its compatibility/activation. */
+export function toRepoAgent(entry: {
+  agent: AgentRow;
+  compatible: boolean;
+  active: boolean;
+}): RepoAgent {
+  return { ...toAgentDto(entry.agent), compatible: entry.compatible, active: entry.active };
 }
 
 /**
- * True when a patch changes config (vs. just toggling `enabled`) relative to the
+ * True when a patch changes config relative to the
  * existing row — a config change bumps the version and snapshots agent_versions.
  */
 export function isConfigChange(
@@ -102,6 +135,7 @@ export function isConfigChange(
     | 'strategy'
     | 'ciFailOn'
     | 'repoIntel'
+    | 'languages'
   >,
   patch: ConfigChangePatch,
 ): boolean {
@@ -114,6 +148,8 @@ export function isConfigChange(
     (patch.strategy !== undefined && patch.strategy !== existing.strategy) ||
     (patch.ciFailOn !== undefined && patch.ciFailOn !== existing.ciFailOn) ||
     (patch.repoIntel !== undefined && patch.repoIntel !== existing.repoIntel) ||
+    (patch.languages !== undefined &&
+      normaliseLanguages(patch.languages) !== normaliseLanguages(existing.languages)) ||
     patch.outputSchema !== undefined
   );
 }

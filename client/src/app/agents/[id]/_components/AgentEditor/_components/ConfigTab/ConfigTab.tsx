@@ -10,9 +10,10 @@ import { useLocalStatus } from "@/lib/hooks/local";
 import { useToast } from "../../../../../../../lib/toast";
 import { toModelOptions } from "../../../../../../../lib/model-label";
 import { CI_FAIL_ON_VALUES, DEFAULT_MODEL, OUTPUT_SCHEMA_VALUE, STRATEGY_VALUES } from "./constants";
+import { LanguagesField, toDraft, fromDraft, draftError } from "./_components/LanguagesField";
 import { s } from "./styles";
 
-/** Config tab — name/description/provider/model/system-prompt + enabled toggle. */
+/** Config tab — name/description/provider/model/system-prompt. */
 export function ConfigTab({ agent }: { agent: Agent }) {
   const t = useTranslations("agents");
   const toast = useToast();
@@ -25,7 +26,7 @@ export function ConfigTab({ agent }: { agent: Agent }) {
   const [strategy, setStrategy] = React.useState<ReviewStrategy>(agent.strategy);
   const [ciFailOn, setCiFailOn] = React.useState<CiFailOn>(agent.ci_fail_on);
   const [repoIntel, setRepoIntel] = React.useState(agent.repo_intel);
-  const [enabled, setEnabled] = React.useState(agent.enabled);
+  const [langs, setLangs] = React.useState(() => toDraft(agent.languages));
 
   // Reset local form when switching agents.
   React.useEffect(() => {
@@ -37,7 +38,7 @@ export function ConfigTab({ agent }: { agent: Agent }) {
     setStrategy(agent.strategy);
     setCiFailOn(agent.ci_fail_on);
     setRepoIntel(agent.repo_intel);
-    setEnabled(agent.enabled);
+    setLangs(toDraft(agent.languages));
   }, [agent.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: models } = useProviderModels(provider);
@@ -77,7 +78,7 @@ export function ConfigTab({ agent }: { agent: Agent }) {
           strategy,
           ci_fail_on: ciFailOn,
           repo_intel: repoIntel,
-          enabled,
+          languages: fromDraft(langs),
         },
       },
       {
@@ -91,10 +92,6 @@ export function ConfigTab({ agent }: { agent: Agent }) {
     <div style={s.wrap}>
       <div style={s.header}>
         <h2 style={s.h2}>{t("config.title")}</h2>
-        <label style={s.enabledLabel}>
-          {t("config.enabled")}
-          <Toggle on={enabled} onChange={setEnabled} size={16} />
-        </label>
       </div>
       <FormField label={t("config.name")} required>
         <TextInput value={name} onChange={setName} />
@@ -140,6 +137,9 @@ export function ConfigTab({ agent }: { agent: Agent }) {
           <Toggle on={repoIntel} onChange={setRepoIntel} size={16} />
         </label>
       </FormField>
+      <FormField label={t("config.languages")} hint={t("config.languagesHint")}>
+        <LanguagesField value={langs} onChange={setLangs} />
+      </FormField>
       <FormField label={t("config.systemPrompt")} hint={t("config.systemPromptHint")}>
         <Textarea value={systemPrompt} onChange={setSystemPrompt} rows={8} mono />
       </FormField>
@@ -147,7 +147,7 @@ export function ConfigTab({ agent }: { agent: Agent }) {
         <SelectInput value={OUTPUT_SCHEMA_VALUE} options={[OUTPUT_SCHEMA_VALUE]} />
       </FormField>
       <div style={s.actions}>
-        <Button kind="primary" icon="Check" onClick={save} disabled={update.isPending}>
+        <Button kind="primary" icon="Check" onClick={save} disabled={update.isPending || draftError(langs) !== null}>
           {update.isPending ? t("config.saving") : t("config.save")}
         </Button>
         {update.isSuccess && (

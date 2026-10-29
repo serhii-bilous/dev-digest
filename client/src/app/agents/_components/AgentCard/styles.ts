@@ -2,13 +2,12 @@ import type { CSSProperties } from "react";
 
 /** Co-located styles for AgentCard (extracted from inline styles). */
 export const s = {
-  card: (active: boolean, enabled: boolean): CSSProperties => ({
+  card: (active: boolean): CSSProperties => ({
     padding: 14,
     borderRadius: 8,
     cursor: "pointer",
     border: "1px solid " + (active ? "var(--border-strong)" : "var(--border)"),
     background: active ? "var(--bg-hover)" : "var(--bg-elevated)",
-    opacity: enabled ? 1 : 0.6,
     marginBottom: 10,
   }),
   headerRow: { display: "flex", alignItems: "center", gap: 10 } satisfies CSSProperties,
@@ -26,6 +25,7 @@ export const s = {
     fontSize: 14,
     fontWeight: 600,
     flex: 1,
+    minWidth: 0,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -40,6 +40,7 @@ export const s = {
     textOverflow: "ellipsis",
   } satisfies CSSProperties,
   metaRow: { display: "flex", alignItems: "center", gap: 8 } satisfies CSSProperties,
+  action: { marginLeft: "auto", flexShrink: 0 } satisfies CSSProperties,
   modelChip: (color: string): CSSProperties => ({
     fontSize: 12,
     fontWeight: 600,

@@ -302,6 +302,10 @@ d('Local review runs (stubbed CLI)', () => {
     const pr = await setupPr();
     const localId = await m.agent('local', 'sonnet');
     const orId = await m.agent('openrouter', 'some/model');
+    // Stack-aware runs are opt-in: activate both agents on this PR's repo first.
+    await pg.handle.db.insert(t.repoAgentStates).values(
+      [localId, orId].map((agentId) => ({ repoId: pr.repoId, agentId, active: true })),
+    );
     const res = await m.app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { all: true } });
     expect(res.statusCode).toBe(200);
     const runs = res.json().runs as { run_id: string; agent_id: string }[];

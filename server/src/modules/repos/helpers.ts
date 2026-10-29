@@ -1,5 +1,6 @@
 import { type Repo } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
+import { deriveStack } from '../../platform/stack-compat.js';
 import { AppError } from '../../platform/errors.js';
 import {
   GITHUB_URL_REGEX,
@@ -52,5 +53,6 @@ export function toRepoDto(row: typeof t.repos.$inferSelect): Repo {
     clone_path: row.clonePath,
     last_polled_at: row.lastPolledAt?.toISOString() ?? null,
     created_by: row.createdBy,
+    stack: deriveStack(row),
   };
 }

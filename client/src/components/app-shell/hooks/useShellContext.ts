@@ -8,7 +8,7 @@ import { type ShellContext } from "@devdigest/ui";
 import { useTheme } from "../../../lib/theme";
 import { useActiveRepo } from "../../../lib/repo-context";
 import { usePulls, useDeleteRepo } from "../../../lib/hooks";
-import { activeKeyFor, toShellRepo } from "../helpers";
+import { activeKeyFor, isAgentsPath, toShellRepo } from "../helpers";
 
 interface ShellContextOptions {
   onOpenCommandPalette: () => void;
@@ -31,9 +31,11 @@ export function useShellContext({ onOpenCommandPalette }: ShellContextOptions): 
   const onSelectRepo = React.useCallback(
     (id: string) => {
       setRepoId(id);
+      // The agents list and editor are per-active-repo views: stay put (AC-26a).
+      if (isAgentsPath(pathname)) return;
       router.push(`/repos/${id}/pulls`);
     },
-    [setRepoId, router],
+    [setRepoId, router, pathname],
   );
 
   const onAddRepo = React.useCallback(() => router.push("/onboarding"), [router]);

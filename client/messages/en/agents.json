@@ -53,7 +53,8 @@
       "evals": "Evals",
       "stats": "Stats",
       "ci": "CI"
-    }
+    },
+    "notCompatible": "Not compatible with {repo}"
   },
   "config": {
     "title": "Configuration",
@@ -90,7 +91,17 @@
     "saving": "Saving…",
     "saved": "Saved (v{version})",
     "savedToast": "Agent saved (v{version})",
-    "localWarning": "Local (Claude Code) cannot run reviews right now. {reason}. The stored model is kept."
+    "localWarning": "Local (Claude Code) cannot run reviews right now. {reason}. The stored model is kept.",
+    "languages": "Languages",
+    "languagesHint": "Which repositories this agent applies to, by code language. Choose Any language to apply to every repository.",
+    "languagesAny": "Any language",
+    "languagesSpecific": "Specific languages",
+    "languagesAdd": "Add language",
+    "languagesAddPlaceholder": "Add a language…",
+    "languagesRemove": "Remove {language}",
+    "languagesRequired": "Pick at least one language, or choose Any language.",
+    "languagesTooMany": "At most 20 languages.",
+    "languagesTooLong": "A language name can be at most 50 characters."
   },
   "skills": {
     "title": "Skills",
@@ -140,5 +151,40 @@
     "local": "Local (Claude Code)",
     "unavailableCli": "Unavailable: Claude Code CLI not found",
     "unavailableToken": "Unavailable: token not configured"
+  },
+  "languageBadge": {
+    "any": "Any language"
+  },
+  "repoAgents": {
+    "activeHeading": "Active on {repo}",
+    "availableHeading": "Available to add",
+    "activeEmpty": "No agents are active on {repo} yet. Add the agents you want to run here from Available to add.",
+    "availableEmpty": "Every compatible agent is already active on {repo}.",
+    "add": "Add",
+    "remove": "Remove",
+    "adding": "Adding…",
+    "removing": "Removing…",
+    "addLabel": "Add {agent} to {repo}",
+    "removeLabel": "Remove {agent} from {repo}",
+    "changeError": "Couldn’t update {agent} on {repo}. Try again.",
+    "noRepoHint": "Import a repository to add agents to it.",
+    "noRepoAgentsTitle": "All agents"
+  },
+  "stack": {
+    "title": "Languages",
+    "moreCount": "+{count} more",
+    "fetchedAt": "Updated {time}",
+    "none": "No code languages detected",
+    "unknownNotice": "Stack unknown: {reason}",
+    "staleNotice": "Stack may be outdated: {reason}",
+    "reasons": {
+      "no_token": "no GitHub token is configured",
+      "no_access": "the GitHub token has no access to this repository",
+      "unreachable": "GitHub could not be reached",
+      "no_code_languages": "no code languages were detected",
+      "unspecified": "the language breakdown is unavailable"
+    },
+    "retry": "Retry",
+    "retrying": "Retrying…"
   }
 }

@@ -10,15 +10,15 @@ export class ToolInputError extends Error {}
 
 /**
  * `GET /repos` has no lookup-by-name — resolve `"owner/name"` client-side.
- * Exact match against `full_name` (constructed the same way in
+ * Exact match against `id` or `full_name` (constructed the same way in
  * `server/src/modules/repos/service.ts`).
  */
 export async function resolveRepo(client: ApiClient, repoArg: string): Promise<Repo> {
   const repos = await client.get<Repo[]>('/repos');
-  const repo = repos.find((r) => r.full_name === repoArg);
+  const repo = repos.find((r) => r.id === repoArg || r.full_name === repoArg);
   if (!repo) {
     throw new ToolInputError(
-      `repo '${repoArg}' is not configured in DevDigest — pass the exact 'owner/name' of an imported repo`,
+      `repo '${repoArg}' is not configured in DevDigest — pass the repo id or the exact 'owner/name' of an imported repo`,
     );
   }
   return repo;

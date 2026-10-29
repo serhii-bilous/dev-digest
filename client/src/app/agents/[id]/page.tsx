@@ -5,11 +5,13 @@
 
 import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Button, Dropdown, ErrorState, Skeleton, Icon, Badge } from "@devdigest/ui";
+import { Button, Dropdown, ErrorState, Skeleton } from "@devdigest/ui";
 import { AppShell } from "../../../components/app-shell";
 import { AgentCard } from "../_components/AgentCard";
 import { AgentEditor } from "./_components/AgentEditor";
-import { useAgents, useAgent, useUpdateAgent } from "../../../lib/hooks/agents";
+import { AgentHeader } from "./_components/AgentHeader";
+import { useActiveRepo } from "@/lib/repo-context";
+import { useAgents, useAgent, useRepoAgent } from "../../../lib/hooks/agents";
 import { ApiError } from "../../../lib/api";
 
 const VALID_TABS = ["config", "skills", "context", "evals", "stats"];
@@ -22,7 +24,8 @@ export default function AgentEditorPage() {
 
   const { data: agents } = useAgents();
   const { data: agent, isLoading, isError, error, refetch } = useAgent(id);
-  const update = useUpdateAgent();
+  const { repoId, activeRepo } = useActiveRepo();
+  const { data: repoAgent } = useRepoAgent(id, repoId);
 
   const tab = VALID_TABS.includes(search.get("tab") ?? "") ? search.get("tab")! : "config";
   const setTab = (t: string) => {
@@ -86,7 +89,6 @@ export default function AgentEditorPage() {
                 ag={a}
                 active={a.id === id}
                 onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
-                onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
               />
             ))}
           </div>
@@ -100,19 +102,11 @@ export default function AgentEditorPage() {
           </div>
         ) : (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 28px 0", flexShrink: 0 }}>
-              <Icon.Cpu size={18} style={{ color: "var(--accent)" }} />
-              <h1 style={{ fontSize: 18, fontWeight: 700 }}>{agent.name}</h1>
-              <Badge color="var(--text-secondary)" mono>
-                {agent.provider}/{agent.model}
-              </Badge>
-              {!agent.enabled && <Badge color="var(--text-muted)">disabled</Badge>}
-              <div style={{ marginLeft: "auto" }}>
-                <Button kind="secondary" size="sm" icon="GitPullRequest" onClick={() => router.push("/")}>
-                  Run on a PR…
-                </Button>
-              </div>
-            </div>
+            <AgentHeader
+              agent={agent}
+              incompatibleRepo={repoAgent && !repoAgent.compatible ? (activeRepo?.full_name ?? null) : null}
+              onRun={() => router.push("/")}
+            />
             <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
               <AgentEditor agent={agent} tab={tab} onTab={setTab} />
             </div>

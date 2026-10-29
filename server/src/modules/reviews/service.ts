@@ -1,6 +1,7 @@
 import type { Container } from '../../platform/container.js';
-import type { FindingActionKind, RunEventKind, RunTrace, SmartDiff } from '@devdigest/shared';
+import type { FindingActionKind, RepoStack, RunEventKind, RunTrace, SmartDiff } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
+import { incompatibleError } from '../../platform/stack-compat.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository, type IntentRecord } from './repository.js';
 import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
@@ -45,19 +46,31 @@ export class ReviewService {
   // ===========================================================================
 
   /**
-   * Resolve which agents to run. `all` → all enabled agents; else a single agent.
+   * Resolve which agents to run, gated by the repo's stack. `all` → active AND
+   * compatible agents (possibly none); a single agent → 404 if missing, 409
+   * `agent_incompatible` if it does not fit the repo's languages. Throws before
+   * any agent_runs row is created. Returns the stack snapshot for the trace.
    */
   async resolveTargets(
     workspaceId: string,
+    prId: string,
     opts: { agentId?: string; all?: boolean },
-  ): Promise<AgentRow[]> {
-    if (opts.all) return this.agents.listEnabled(workspaceId);
-    if (opts.agentId) {
-      const agent = await this.agents.getById(workspaceId, opts.agentId);
-      if (!agent) throw new NotFoundError('Agent not found');
-      return [agent];
+  ): Promise<{ targets: AgentRow[]; stack: RepoStack }> {
+    if (!opts.all && !opts.agentId) {
+      throw new AppError('invalid_run_request', 'Provide agentId or all:true', 400);
     }
-    throw new AppError('invalid_run_request', 'Provide agentId or all:true', 400);
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const { stack, entries, exact } = await this.container.repoStack.evaluate(workspaceId, pull.repoId);
+    if (opts.all) {
+      return { targets: entries.filter((e) => e.active && e.compatible).map((e) => e.agent), stack };
+    }
+    const entry = entries.find((e) => e.agent.id === opts.agentId);
+    if (!entry) throw new NotFoundError('Agent not found');
+    if (!entry.compatible) {
+      throw incompatibleError(entry.agent.name, entry.agent.languages, exact);
+    }
+    return { targets: [entry.agent], stack };
   }
 
   /** Delete a whole review run (one agent's pass) + its findings (cascade). */
@@ -114,6 +127,7 @@ export class ReviewService {
     workspaceId: string,
     prId: string,
     targets: AgentRow[],
+    stack: RepoStack | null,
     logger?: Logger,
   ): Promise<{ runs: { run_id: string; agent_id: string; agent_name: string }[]; reviews: ReviewDto[] }> {
     const pull = await this.repo.getPull(workspaceId, prId);
@@ -140,7 +154,7 @@ export class ReviewService {
 
     // Fire-and-forget: the HTTP response returns now with the runIds; reviews
     // are persisted as each agent finishes and the client refetches on SSE done.
-    void this.executor.executeRuns(workspaceId, pull, repo, jobs, logger).catch((err) => {
+    void this.executor.executeRuns(workspaceId, pull, repo, jobs, logger, stack).catch((err) => {
       logger?.error({ prId, err: (err as Error).message }, 'review: background execution crashed');
     });
 

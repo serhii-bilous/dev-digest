@@ -295,6 +295,13 @@ export type ReviewStrategy = z.infer<typeof ReviewStrategy>;
 export const CiFailOn = z.enum(['never', 'critical', 'warning', 'any']);
 export type CiFailOn = z.infer<typeof CiFailOn>;
 
+/** Languages an agent applies to: 'any' (stack-agnostic) or 1-20 language names. */
+export const AgentLanguages = z.union([
+  z.literal('any'),
+  z.array(z.string().min(1).max(50)).min(1).max(20),
+]);
+export type AgentLanguages = z.infer<typeof AgentLanguages>;
+
 export const Agent = z.object({
   id: z.string(),
   name: z.string(),
@@ -303,7 +310,6 @@ export const Agent = z.object({
   model: z.string(),
   system_prompt: z.string(),
   output_schema: z.unknown().nullish(),
-  enabled: z.boolean(),
   version: z.number().int(),
   strategy: ReviewStrategy.default('single-pass'),
   ci_fail_on: CiFailOn.default('critical'),
@@ -313,6 +319,8 @@ export const Agent = z.object({
   // Project Context — ordered repo-relative markdown paths attached directly
   // to this agent (paths only, never text). Read at run time.
   context_paths: z.array(z.string()).default([]),
+  // Stack awareness — languages this agent applies to; 'any' = every repo.
+  languages: AgentLanguages.default('any'),
 }).superRefine(refineAgentProviderModel);
 export type Agent = z.infer<typeof Agent>;
 
@@ -340,7 +348,7 @@ export const AgentSkillDetail = Skill.extend({
 export type AgentSkillDetail = z.infer<typeof AgentSkillDetail>;
 
 // The immutable config snapshot captured in `agent_versions` whenever an agent's
-// config changes (everything but `enabled`). Mirrors the shape written by the
+// config changes (every config field). Mirrors the shape written by the
 // agents repository — provider/model/prompt/output_schema/strategy/gate/repo_intel
 // plus the ordered skill ids linked at snapshot time. Used for reproducibility
 // (eval replays a past version) and for surfacing an agent's edit history.
@@ -355,6 +363,8 @@ export const AgentVersionConfig = z.object({
   skills: z.array(z.string()),
   /** Ordered Project Context paths; absent on snapshots taken before the feature. */
   context_paths: z.array(z.string()).default([]),
+  /** Absent on snapshots taken before stack awareness. */
+  languages: AgentLanguages.default('any'),
 }).superRefine(refineAgentProviderModel);
 export type AgentVersionConfig = z.infer<typeof AgentVersionConfig>;
 

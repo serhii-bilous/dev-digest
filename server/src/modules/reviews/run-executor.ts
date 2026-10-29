@@ -1,6 +1,6 @@
 import PQueue from 'p-queue';
 import type { Container } from '../../platform/container.js';
-import type { LocalFailureReason, Review, RunTrace, SpecReadEntry, UnifiedDiff } from '@devdigest/shared';
+import type { LocalFailureReason, RepoStack, Review, RunTrace, SpecReadEntry, UnifiedDiff } from '@devdigest/shared';
 import {
   reviewPullRequest,
   countBlockers,
@@ -81,7 +81,10 @@ export class ReviewRunExecutor {
     repo: typeof schema.repos.$inferSelect,
     jobs: { agent: AgentRow; runId: string }[],
     logger?: Logger,
+    stack: RepoStack | null = null,
   ): Promise<void> {
+    // Stack snapshot persisted on every trace (null when unavailable).
+    const snapshot: RunTrace['repo_stack'] = stack ? { status: stack.status, languages: stack.languages } : null;
     // ONE logger fanned out over every queued run: shared pre-work (diff +
     // intent) is streamed into each target agent's Live Log and persisted into
     // each run's trace. Per-agent work below narrows it to a single run.
@@ -110,7 +113,7 @@ export class ReviewRunExecutor {
           })
           .catch(() => undefined);
         await this.repo
-          .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed'))
+          .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', 0, [], {}, snapshot))
           .catch(() => undefined);
         this.container.runBus.complete(runId);
       }
@@ -150,7 +153,7 @@ export class ReviewRunExecutor {
           `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
         );
         try {
-          const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, intentDigest, agent, runId, runLog, logger);
+          const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, intentDigest, agent, runId, runLog, logger, snapshot);
           logger?.info(
             {
               runId,
@@ -186,6 +189,7 @@ export class ReviewRunExecutor {
     runId: string,
     parentLog: RunLogger,
     logger?: Logger,
+    snapshot: RunTrace['repo_stack'] = null,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -391,6 +395,7 @@ export class ReviewRunExecutor {
         memory_pulled: [],
         specs_read: specsRead,
         skills_used: skillIds.length > 0 ? skillIds : null,
+        repo_stack: snapshot,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
@@ -435,7 +440,7 @@ export class ReviewRunExecutor {
           this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, specsRead, {
             queuedMs: queue.total(),
             failureReason,
-          }),
+          }, snapshot),
         )
         .catch(() => undefined);
       this.container.runBus.complete(runId);
@@ -677,6 +682,7 @@ export class ReviewRunExecutor {
     durationMs = 0,
     specsRead: SpecReadEntry[] = [],
     local: { queuedMs?: number | null; failureReason?: LocalFailureReason | null } = {},
+    snapshot: RunTrace['repo_stack'] = null,
   ): RunTrace {
     return {
       config: {
@@ -703,6 +709,7 @@ export class ReviewRunExecutor {
       raw_output: '',
       memory_pulled: [],
       specs_read: specsRead,
+      repo_stack: snapshot,
       log: this.container.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
     };
   }

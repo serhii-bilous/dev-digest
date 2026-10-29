@@ -1,12 +1,16 @@
 import 'dotenv/config';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
   TEST_QUALITY_REVIEWER_PROMPT,
+  GENERAL_REVIEWER_PYTHON_PROMPT,
+  SECURITY_REVIEWER_PYTHON_PROMPT,
+  PERFORMANCE_REVIEWER_PYTHON_PROMPT,
+  TEST_QUALITY_REVIEWER_PYTHON_PROMPT,
 } from './seed-prompts.js';
 
 /** Default provider/model for the built-in reviewer agents. */
@@ -78,7 +82,9 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     .select()
     .from(t.repos)
     .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.fullName, 'acme/payments-api')));
+  let repoCreated = false;
   if (!repo) {
+    repoCreated = true;
     [repo] = await db
       .insert(t.repos)
       .values({
@@ -190,58 +196,48 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     ]);
   }
 
-  // ---- built-in agents (the three starter presets) ----
-  // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
-  const seedAgents: Array<typeof t.agents.$inferInsert> = [
-    {
-      workspaceId,
-      name: 'General Reviewer',
-      description: 'Reviews a PR diff for bugs, correctness, and clarity.',
-      provider: DEFAULT_PROVIDER,
-      model: DEFAULT_MODEL,
-      systemPrompt: GENERAL_REVIEWER_PROMPT,
-      enabled: true,
-      version: 1,
-      createdBy: userId,
-    },
-    {
-      workspaceId,
-      name: 'Security Reviewer',
-      description: 'Flags secrets, injection, SSRF and the lethal trifecta before merge.',
-      provider: DEFAULT_PROVIDER,
-      model: DEFAULT_MODEL,
-      systemPrompt: SECURITY_REVIEWER_PROMPT,
-      enabled: true,
-      version: 1,
-      createdBy: userId,
-    },
-    {
-      workspaceId,
-      name: 'Performance Reviewer',
-      description: 'Catches N+1 queries, missing indexes, and hot-path allocations.',
-      provider: DEFAULT_PROVIDER,
-      model: DEFAULT_MODEL,
-      systemPrompt: PERFORMANCE_REVIEWER_PROMPT,
-      enabled: true,
-      version: 1,
-      createdBy: userId,
-    },
-  ];
-  for (const a of seedAgents) {
-    const [existing] = await db
-      .select()
-      .from(t.agents)
-      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
-    if (!existing) await db.insert(t.agents).values(a);
+  // ---- per-workspace catalog: skills + built-in agents (every workspace) ----
+  const allWorkspaces = await db.select({ id: t.workspaces.id }).from(t.workspaces);
+  const defaultTsAgentIds: string[] = [];
+  for (const { id: wsId } of allWorkspaces) {
+    const ids = await seedWorkspaceCatalog(db, wsId, wsId === workspaceId ? userId : await ownerOf(db, wsId, userId));
+    if (wsId === workspaceId) defaultTsAgentIds.push(...ids);
   }
 
-  // ---- demo skills (L02) ----
-  // `test-coverage-nudge` is seeded with source: 'extracted' so it reads as
-  // having come through the file-import path, without actually calling the
-  // import endpoint (seed data, not an HTTP round-trip).
+  // ---- first-time demo repo: the four TS/JS built-ins start active on it ----
+  // Only when THIS run created the repo; re-runs never recreate removed rows.
+  if (repoCreated && defaultTsAgentIds.length > 0) {
+    await db
+      .insert(t.repoAgentStates)
+      .values(defaultTsAgentIds.map((agentId) => ({ repoId, agentId, active: true })))
+      .onConflictDoNothing();
+  }
+
+  return { workspaceId, userId };
+}
+
+const TS_LANGUAGES = ['TypeScript', 'JavaScript'];
+const PY_LANGUAGES = ['Python'];
+
+/** Creator for agents in a non-default workspace: its owner, else the system user. */
+async function ownerOf(db: Db, wsId: string, fallback: string): Promise<string> {
+  const [m] = await db
+    .select({ userId: t.workspaceMembers.userId })
+    .from(t.workspaceMembers)
+    .where(and(eq(t.workspaceMembers.workspaceId, wsId), eq(t.workspaceMembers.role, 'owner')));
+  return m?.userId ?? fallback;
+}
+
+/**
+ * Seed the skills and the eight built-in agents (4 TS/JS + 4 Python) of one
+ * workspace. Idempotent by name. Returns the ids of the four TS/JS built-ins.
+ * Never touches an existing agent's `languages`, except Python-named built-ins
+ * whose declaration is still `any` (NULL) → ['Python'].
+ */
+async function seedWorkspaceCatalog(db: Db, wsId: string, userId: string): Promise<string[]> {
   const seedSkills: Array<typeof t.skills.$inferInsert> = [
     {
-      workspaceId,
+      workspaceId: wsId,
       name: 'pr-quality-rubric',
       description: 'General PR quality checklist applied on top of the agent’s own review.',
       type: 'rubric',
@@ -250,7 +246,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       enabled: true,
     },
     {
-      workspaceId,
+      workspaceId: wsId,
       name: 'no-then-chains',
       description: 'Flags Promise .then() chains in new code; this codebase standardizes on async/await.',
       type: 'convention',
@@ -259,7 +255,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       enabled: true,
     },
     {
-      workspaceId,
+      workspaceId: wsId,
       name: 'secret-leakage-gate',
       description: 'Flags hardcoded secrets, API keys, and tokens committed in plaintext.',
       type: 'security',
@@ -268,7 +264,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       enabled: true,
     },
     {
-      workspaceId,
+      workspaceId: wsId,
       name: 'lethal-trifecta',
       description: 'Flags the lethal-trifecta pattern: untrusted content + private data access + an exfiltration path in one agent flow.',
       type: 'security',
@@ -277,7 +273,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       enabled: true,
     },
     {
-      workspaceId,
+      workspaceId: wsId,
       name: 'phantom-api-gate',
       description: 'Flags calls to endpoints, routes, or methods that do not exist anywhere in the codebase.',
       type: 'security',
@@ -286,7 +282,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       enabled: true,
     },
     {
-      workspaceId,
+      workspaceId: wsId,
       name: 'test-coverage-nudge',
       description: 'Flags new branches, error paths, and edge cases introduced without a corresponding test.',
       type: 'custom',
@@ -300,7 +296,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     const [existing] = await db
       .select()
       .from(t.skills)
-      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, sk.name)));
+      .where(and(eq(t.skills.workspaceId, wsId), eq(t.skills.name, sk.name)));
     if (existing) {
       skillIdByName.set(sk.name, existing.id);
     } else {
@@ -314,42 +310,63 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     }
   }
 
-  // ---- Test Quality Reviewer (L02) — 4th built-in agent, ships with 2 linked skills ----
-  const [existingTestAgent] = await db
-    .select()
-    .from(t.agents)
-    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Test Quality Reviewer')));
-  let testAgentId = existingTestAgent?.id;
-  if (!existingTestAgent) {
-    const [inserted] = await db
-      .insert(t.agents)
-      .values({
-        workspaceId,
-        name: 'Test Quality Reviewer',
-        description: 'Flags uncovered branches, missed edge cases, excessive mocking, and flaky-test patterns.',
-        provider: DEFAULT_PROVIDER,
-        model: DEFAULT_MODEL,
-        systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
-        enabled: true,
-        version: 1,
-        createdBy: userId,
-      })
-      .returning();
-    testAgentId = inserted!.id;
-  }
-  if (testAgentId) {
-    const testCoverageId = skillIdByName.get('test-coverage-nudge');
-    const rubricId = skillIdByName.get('pr-quality-rubric');
-    const links = [
-      testCoverageId ? { agentId: testAgentId, skillId: testCoverageId, order: 0 } : null,
-      rubricId ? { agentId: testAgentId, skillId: rubricId, order: 1 } : null,
-    ].filter((l): l is { agentId: string; skillId: string; order: number } => l !== null);
-    for (const link of links) {
-      await db.insert(t.agentSkills).values(link).onConflictDoNothing();
+  type Builtin = {
+    name: string;
+    description: string;
+    prompt: string;
+    languages: string[];
+    skills: string[];
+  };
+  const builtins: Builtin[] = [
+    { name: 'General Reviewer', description: 'Reviews a PR diff for bugs, correctness, and clarity.', prompt: GENERAL_REVIEWER_PROMPT, languages: TS_LANGUAGES, skills: [] },
+    { name: 'Security Reviewer', description: 'Flags secrets, injection, SSRF and the lethal trifecta before merge.', prompt: SECURITY_REVIEWER_PROMPT, languages: TS_LANGUAGES, skills: [] },
+    { name: 'Performance Reviewer', description: 'Catches N+1 queries, missing indexes, and hot-path allocations.', prompt: PERFORMANCE_REVIEWER_PROMPT, languages: TS_LANGUAGES, skills: [] },
+    { name: 'Test Quality Reviewer', description: 'Flags uncovered branches, missed edge cases, excessive mocking, and flaky-test patterns.', prompt: TEST_QUALITY_REVIEWER_PROMPT, languages: TS_LANGUAGES, skills: ['test-coverage-nudge', 'pr-quality-rubric'] },
+    { name: 'General Reviewer (Python)', description: 'Reviews a Python PR diff for bugs, correctness, and clarity.', prompt: GENERAL_REVIEWER_PYTHON_PROMPT, languages: PY_LANGUAGES, skills: [] },
+    { name: 'Security Reviewer (Python)', description: 'Flags eval/exec, pickle, unsafe YAML, shell injection, SSRF and secrets in Python code.', prompt: SECURITY_REVIEWER_PYTHON_PROMPT, languages: PY_LANGUAGES, skills: [] },
+    { name: 'Performance Reviewer (Python)', description: 'Catches ORM N+1 queries, blocking calls in async code, and hot-loop waste in Python.', prompt: PERFORMANCE_REVIEWER_PYTHON_PROMPT, languages: PY_LANGUAGES, skills: [] },
+    { name: 'Test Quality Reviewer (Python)', description: 'Flags weak pytest/unittest tests: missing assertions, mock overuse, flaky patterns.', prompt: TEST_QUALITY_REVIEWER_PYTHON_PROMPT, languages: PY_LANGUAGES, skills: ['pr-quality-rubric'] },
+  ];
+  const tsIds: string[] = [];
+  for (const b of builtins) {
+    const [existing] = await db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, wsId), eq(t.agents.name, b.name)));
+    let agentId = existing?.id;
+    if (!existing) {
+      const [ins] = await db
+        .insert(t.agents)
+        .values({
+          workspaceId: wsId,
+          name: b.name,
+          description: b.description,
+          provider: DEFAULT_PROVIDER,
+          model: DEFAULT_MODEL,
+          systemPrompt: b.prompt,
+          languages: b.languages,
+          // legacy column, no longer read (activation is per repo)
+          enabled: true,
+          version: 1,
+          createdBy: userId,
+        })
+        .returning();
+      agentId = ins!.id;
+    } else if (b.languages === PY_LANGUAGES && existing.languages === null) {
+      await db
+        .update(t.agents)
+        .set({ languages: PY_LANGUAGES })
+        .where(and(eq(t.agents.id, existing.id), isNull(t.agents.languages)));
+    }
+    if (b.languages === TS_LANGUAGES) tsIds.push(agentId!);
+    for (const [order, skillName] of b.skills.entries()) {
+      const skillId = skillIdByName.get(skillName);
+      if (skillId) {
+        await db.insert(t.agentSkills).values({ agentId: agentId!, skillId, order }).onConflictDoNothing();
+      }
     }
   }
-
-  return { workspaceId, userId };
+  return tsIds;
 }
 
 // CLI entrypoint

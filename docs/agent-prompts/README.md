@@ -11,6 +11,11 @@ in the DB). The canonical, reviewable copies live next to this file:
 - [`performance-reviewer.md`](./performance-reviewer.md)
 - [`test-quality-reviewer.md`](./test-quality-reviewer.md) — seeded disabled; driven by its skills
 - [`api-contract-reviewer.md`](./api-contract-reviewer.md) — seeded disabled; driven by its skills
+- Python variants (`languages: ['Python']`), mirroring `*_PYTHON_PROMPT` in `server/src/db/seed-prompts.ts`:
+  [`general-reviewer-python.md`](./general-reviewer-python.md) ·
+  [`security-reviewer-python.md`](./security-reviewer-python.md) ·
+  [`performance-reviewer-python.md`](./performance-reviewer-python.md) ·
+  [`test-quality-reviewer-python.md`](./test-quality-reviewer-python.md)
 
 > The DB is the source of truth at run time. These files are the human-readable
 > originals — when you change a prompt, edit the file here **and** push it to the

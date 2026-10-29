@@ -373,3 +373,85 @@ describe('ReviewRunExecutor.executeRuns — PQueue concurrency bound is actually
     expect(repo.insertReview).toHaveBeenCalledTimes(jobCount);
   });
 });
+
+describe('ReviewRunExecutor.executeRuns — repo stack snapshot in the trace (NFR-12)', () => {
+  const STACK = {
+    status: 'known' as const,
+    languages: [
+      { name: 'Python', bytes: 900, percent: 90 },
+      { name: 'TypeScript', bytes: 100, percent: 10 },
+    ],
+    fetched_at: '2026-01-01T00:00:00.000Z',
+  };
+  const EXPECTED = { status: 'known', languages: STACK.languages };
+
+  const savedTrace = (repo: ReviewRepository, runId: string) => {
+    const call = (repo.saveRunTrace as unknown as ReturnType<typeof vi.fn>).mock.calls.find((c) => c[0] === runId);
+    expect(call, `saveRunTrace called for ${runId}`).toBeDefined();
+    return call![1] as { repo_stack?: unknown };
+  };
+
+  it('normal path: the persisted trace carries repo_stack {status, languages}', async () => {
+    const repo = buildFakeRepo(vi.fn().mockResolvedValue(undefined));
+    const container = buildFakeContainer(new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }), new RunBus());
+    const executor = new ReviewRunExecutor(container, repo, container.agentsRepo);
+
+    await executor.executeRuns(
+      'ws-1', fakePull(), fakeRepoRow(), [{ agent: fakeAgent('a1', 'A'), runId: 'run-1' }], undefined, STACK,
+    );
+
+    const trace = savedTrace(repo, 'run-1');
+    expect(trace.repo_stack).toEqual(EXPECTED);
+    // only the compatibility snapshot is stored, not fetch timestamps
+    expect(trace.repo_stack).not.toHaveProperty('fetched_at');
+  });
+
+  it('buffered failure path (agent run throws): trace still carries repo_stack', async () => {
+    const repo = {
+      ...buildFakeRepo(vi.fn().mockResolvedValue(undefined)),
+      insertFindings: vi.fn().mockRejectedValue(new Error('boom')),
+    } as unknown as ReviewRepository;
+    const container = buildFakeContainer(new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }), new RunBus());
+    const executor = new ReviewRunExecutor(container, repo, container.agentsRepo);
+
+    await executor.executeRuns(
+      'ws-1', fakePull(), fakeRepoRow(), [{ agent: fakeAgent('a1', 'A'), runId: 'run-1' }], undefined, STACK,
+    );
+
+    expect(repo.completeAgentRun).toHaveBeenCalledWith('run-1', expect.objectContaining({ status: 'failed' }));
+    expect(savedTrace(repo, 'run-1').repo_stack).toEqual(EXPECTED);
+  });
+
+  it('buffered failure path (diff load fails for every run): each trace carries repo_stack', async () => {
+    const repo = {
+      ...buildFakeRepo(vi.fn().mockResolvedValue(undefined)),
+      getPrFiles: vi.fn().mockRejectedValue(new Error('no files')),
+    } as unknown as ReviewRepository;
+    const container = {
+      ...buildFakeContainer(new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }), new RunBus()),
+      git: { diff: vi.fn().mockRejectedValue(new Error('git down')) },
+    } as unknown as Container;
+    const executor = new ReviewRunExecutor(container, repo, container.agentsRepo);
+
+    await executor.executeRuns(
+      'ws-1', fakePull(), fakeRepoRow(),
+      [
+        { agent: fakeAgent('a1', 'A'), runId: 'run-1' },
+        { agent: fakeAgent('a2', 'B'), runId: 'run-2' },
+      ],
+      undefined, STACK,
+    );
+
+    expect(repo.insertReview).not.toHaveBeenCalled();
+    expect(savedTrace(repo, 'run-1').repo_stack).toEqual(EXPECTED);
+    expect(savedTrace(repo, 'run-2').repo_stack).toEqual(EXPECTED);
+  });
+
+  it('no stack given: trace records repo_stack as null (never undefined garbage)', async () => {
+    const repo = buildFakeRepo(vi.fn().mockResolvedValue(undefined));
+    const container = buildFakeContainer(new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }), new RunBus());
+    const executor = new ReviewRunExecutor(container, repo, container.agentsRepo);
+    await executor.executeRuns('ws-1', fakePull(), fakeRepoRow(), [{ agent: fakeAgent('a1', 'A'), runId: 'run-1' }]);
+    expect(savedTrace(repo, 'run-1').repo_stack).toBeNull();
+  });
+});

@@ -74,6 +74,13 @@ _None yet._
 
 ## Tool & Library Notes
 
+- **2026-10-29** — `@testing-library/user-event` is **not** a client
+  dependency; importing it fails the run (four agents hit this in one build).
+  Use `fireEvent` from `@testing-library/react`. Also, `pnpm lint` currently
+  crashes with `Cannot find package '@eslint/js' imported from
+  client/eslint.config.mjs` — the lint gate can't run until that dev
+  dependency is installed. `cd client && pnpm lint`
+
 - **2026-08-04** — This dev environment's seeded Postgres has zero
   `agent_runs` rows with `findings_count > 0` across all 3 seeded repos
   (`acme/payments-api`, `myasoid/dev-digest`, `quarkusio/quarkus`) — every

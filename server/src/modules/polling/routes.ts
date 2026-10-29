@@ -34,6 +34,8 @@ export default async function pollingRoutes(appBase: FastifyInstance) {
       await container.pullsRepo.upsertFromGitHub(workspaceId, repo.id, pr);
     }
     await container.reposRepo.touchPolledAt(repo.id);
+    // Stack bootstrap for unknown repos; the service never throws (a language problem must not fail a poll).
+    await container.repoStack.afterPollSuccess(workspaceId, repo.id);
 
     // NOTE: no review is triggered here — manual trigger only.
     return { synced: pulls.length, reviewTriggered: false };

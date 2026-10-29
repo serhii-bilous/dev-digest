@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RepoLanguage, RepoStackStatus } from './platform.js';
 import { Billing, LocalFailureReason } from './knowledge.js';
 
 /**
@@ -122,6 +123,8 @@ export const RunTrace = z.object({
    *  on runs recorded before this field existed — treat as no skills used,
    *  no backfill. Feeds the Stats tab's "most-used skills" aggregation. */
   skills_used: z.array(z.string()).nullish(),
+  /** Repo stack snapshot at run time; absent on older runs. */
+  repo_stack: z.object({ status: RepoStackStatus, languages: z.array(RepoLanguage) }).nullish(),
   log: z.array(RunLogLine),
 });
 export type RunTrace = z.infer<typeof RunTrace>;

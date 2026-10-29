@@ -26,7 +26,7 @@ const AGENT: Agent = {
   ci_fail_on: "critical",
   repo_intel: true,
   context_paths: [],
-  enabled: true,
+  languages: "any",
   version: 1,
 };
 
@@ -73,5 +73,31 @@ describe("AgentCard Local badge (AC-12)", () => {
     localStatus = { available: false, reason: "cli_missing", token_configured: false };
     renderWithIntl(<AgentCard ag={AGENT} />);
     expect(screen.queryByText(/Local unavailable/)).toBeNull();
+  });
+});
+
+describe("AgentCard language badge (AC-58..60, AC-63)", () => {
+  it("shows the declaration in order, 'Any language', and caps at 3 with +N", () => {
+    renderWithIntl(<AgentCard ag={{ ...AGENT, languages: ["TypeScript", "JavaScript"] }} />);
+    expect(screen.getByRole("img", { name: "TypeScript · JavaScript" })).toHaveTextContent("TypeScript · JavaScript");
+    cleanup();
+    renderWithIntl(<AgentCard ag={{ ...AGENT, languages: "any" }} />);
+    expect(screen.getByRole("img", { name: "Any language" })).toHaveTextContent("Any language");
+    cleanup();
+    renderWithIntl(<AgentCard ag={{ ...AGENT, languages: ["A", "B", "C", "D", "E"] }} />);
+    const badge = screen.getByRole("img", { name: "A · B · C · D · E" });
+    expect(badge).toHaveTextContent("A · B · C +2");
+  });
+
+  it("AC-60: with a 120-char name only the name is truncated, the badge is not", () => {
+    const name = "N".repeat(120);
+    renderWithIntl(<AgentCard ag={{ ...AGENT, name, languages: ["TypeScript", "JavaScript"] }} />, );
+    const nameEl = screen.getByText(name);
+    const badge = screen.getByRole("img", { name: "TypeScript · JavaScript" });
+    expect(badge).toHaveTextContent("TypeScript · JavaScript");
+    expect(nameEl.style.textOverflow).toBe("ellipsis");
+    expect(nameEl).not.toContainElement(badge);
+    expect(badge.style.textOverflow).not.toBe("ellipsis");
+    expect(badge.style.overflow).not.toBe("hidden");
   });
 });

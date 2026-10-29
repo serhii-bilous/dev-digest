@@ -10,6 +10,13 @@ describe('resolveRepo', () => {
     await expect(resolveRepo(client, 'acme/payments-api')).resolves.toMatchObject({ id: 'r1' });
   });
 
+  it('matches on repo id', async () => {
+    const client = stubClient({
+      get: async () => [{ id: 'r1', owner: 'acme', name: 'payments-api', full_name: 'acme/payments-api' }],
+    });
+    await expect(resolveRepo(client, 'r1')).resolves.toMatchObject({ full_name: 'acme/payments-api' });
+  });
+
   it('throws a ToolInputError naming the expected format when not found', async () => {
     const client = stubClient({ get: async () => [] });
     await expect(resolveRepo(client, 'nope/nope')).rejects.toThrow(ToolInputError);

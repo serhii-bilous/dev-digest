@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import { type Repo } from '@devdigest/shared';
+import { type Repo, type RepoRefreshResponse } from '@devdigest/shared';
 import { NotFoundError } from '../../platform/errors.js';
 import { RepoRepository } from './repository.js';
 import { parseRepoUrl, withGitHubToken, toRepoDto } from './helpers.js';
@@ -102,7 +102,9 @@ export class RepoService {
       url,
     } satisfies CloneJobPayload);
 
-    return { repo: toRepoDto(row), created: true };
+    // Inline language fetch (never throws on a GitHub failure — see RepoStackService).
+    const stack = await this.container.repoStack.ensure(workspaceId, row.id, { force: true });
+    return { repo: { ...toRepoDto(row), stack }, created: true };
   }
 
   async list(workspaceId: string): Promise<Repo[]> {
@@ -111,7 +113,7 @@ export class RepoService {
   }
 
   /** Re-fetch the clone for an existing repo (enqueues a fresh `clone` job). */
-  async refresh(workspaceId: string, id: string): Promise<{ status: 'refreshing' }> {
+  async refresh(workspaceId: string, id: string): Promise<RepoRefreshResponse> {
     const repo = await this.repo.getById(workspaceId, id);
     if (!repo) throw new NotFoundError('Repo not found');
     await this.container.jobs.enqueue(workspaceId, CLONE_JOB_KIND, {
@@ -134,7 +136,9 @@ export class RepoService {
     } catch {
       // No handler / transient enqueue failure — refresh button is best-effort.
     }
-    return { status: 'refreshing' };
+    // Force a language re-fetch; a failure keeps the previous map (ensure never throws on fetch errors).
+    const stack = await this.container.repoStack.ensure(workspaceId, id, { force: true });
+    return { status: 'refreshing', stack };
   }
 
   async remove(workspaceId: string, id: string): Promise<void> {
